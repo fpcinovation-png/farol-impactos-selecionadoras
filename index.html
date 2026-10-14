@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Farol de Impactos das Selecionadoras</title>
+  <style>
+    :root {
+      --nok: #dc2626;
+      --nok-bg: #fef2f2;
+      --warn: #d97706;
+      --warn-bg: #fffbeb;
+      --ok: #16a34a;
+      --ok-bg: #f0fdf4;
+      --pend: #7c3aed;
+      --pend-bg: #f5f3ff;
+      --azul: #0f2942;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: #f3f4f6;
+      color: #1f2937;
+    }
+
+    header {
+      background: var(--azul);
+      color: #fff;
+      padding: 14px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 18px;
+    }
+
+    header .sub {
+      font-size: 12px;
+      color: #9ca3af;
+    }
+
+    .userbox {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+    }
+
+    .userbox button {
+      background: #1f3a57;
+      color: #fff;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+
+    nav {
+      background: #fff;
+      border-bottom: 1px solid #e5e7eb;
+      display: flex;
+      gap: 4px;
+      padding: 0 16px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    nav button {
+      border: none;
+      background: none;
+      padding: 12px 16px;
+      font-size: 13px;
+      cursor: pointer;
+      color: #6b7280;
+      border-bottom: 3px solid transparent;
+    }
+
+    nav button.active {
+      color: var(--azul);
+      border-bottom-color: var(--azul);
+      font-weight: 700;
+    }
+
+    nav select {
+      margin-left: auto;
+      padding: 6px 8px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: 12px;
+    }
+
+    main {
+      padding: 20px;
+      max-width: 1500px;
+      margin: 0 auto;
+    }
+
+    .resumo {
+      display: flex;
+      gap: 14px;
+      margin-bottom: 18px;
+      flex-wrap: wrap;
+    }
+
+    .resumo .card {
+      flex: 1;
+      min-width: 150px;
+      background: #fff;
+      border-radius: 8px;
+      padding: 14px 18px;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, .06);
+    }
+
+    .resumo .card .n {
+      font-size: 28px;
+      font-weight: 800;
+    }
+
+    .resumo .card .l {
+      font-size: 12px;
+      color: #6b7280;
+      text-transform: uppercase;
+      letter-spacing: .03em;
+    }
+
+    .cols {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+    }
+
+    @media(max-width:1100px) {
+      .cols {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+
+    @media(max-width:640px) {
+      .cols {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .col {
+      background: #fff;
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, .06);
+    }
+
+    .col .head {
+      padding: 12px 16px;
+      font-weight: 700;
+      font-size: 14px;
+      color: #fff;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .col.nok .head {
+      background: var(--nok);
+    }
+
+    .col.warn .head {
+      background: var(--warn);
+    }
+
+    .col.ok .head {
+      background: var(--ok);
+    }
+
+    .col.pend .head {
+      background: var(--pend);
+    }
+
+    .col .body {
+      padding: 10px;
+      max-height: 68vh;
+      overflow-y: auto;
+    }
+
+    .item {
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin-bottom: 8px;
+      font-size: 13px;
+      border-left: 4px solid #ccc;
+    }
+
+    .col.nok .item {
+      background: var(--nok-bg);
+      border-left-color: var(--nok);
+    }
+
+    .col.warn .item {
+      background: var(--warn-bg);
+      border-left-color: var(--warn);
+    }
+
+    .col.ok .item {
+      background: var(--ok-bg);
+      border-left-color: var(--ok);
+    }
+
+    .col.pend .item {
+      background: var(--pend-bg);
+      border-left-color: var(--pend);
+    }
+
+    .item .sel {
+      font-weight: 700;
+    }
+
+    .item .desc {
+      color: #374151;
+      margin-top: 2px;
+    }
+
+    .item .meta {
+      color: #6b7280;
+      font-size: 11px;
+      margin-top: 4px;
+    }
+
+    .item .dias {
+      font-weight: 700;
+      font-size: 11px;
+      margin-top: 2px;
+    }
+
+    .empty {
+      color: #9ca3af;
+      font-size: 13px;
+      padding: 14px;
+      text-align: center;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #fff;
+      font-size: 13px;
+    }
+
+    th,
+    td {
+      padding: 8px 10px;
+      border-bottom: 1px solid #e5e7eb;
+      text-align: left;
+    }
+
+    th {
+      background: #f8fafc;
+      color: #6b7280;
+      font-size: 11px;
+      text-transform: uppercase;
+    }
+
+    #loginScreen {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--azul);
+    }
+
+    #loginScreen .box {
+      background: #fff;
+      padding: 32px;
+      border-radius: 10px;
+      width: 320px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, .3);
+    }
+
+    #loginScreen h2 {
+      margin: 0 0 18px;
+      color: var(--azul);
+      font-size: 18px;
+    }
+
+    #loginScreen input {
+      width: 100%;
+      padding: 10px;
+      margin-bottom: 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+
+    #loginScreen button {
+      width: 100%;
+      padding: 10px;
+      background: var(--azul);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    #loginError {
+      color: var(--nok);
+      font-size: 12px;
+      margin-bottom: 10px;
+      min-height: 14px;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div id="loginScreen">
+    <div class="box">
+      <h2>🚨 Farol de Impactos</h2>
+      <div id="loginError"></div>
+      <input id="loginUser" placeholder="Usuário" autocomplete="username">
+      <input id="loginPass" type="password" placeholder="Senha" autocomplete="current-password">
+      <button onclick="fazerLogin()">Entrar</button>
+    </div>
+  </div>
+
+  <div id="app" class="hidden">
+    <header>
+      <div>
+        <h1>🚨 Farol de Impactos das Selecionadoras</h1>
+        <div class="sub">Impactos físicos / colisões · atualizado em <span id="ultimaAtualizacao">—</span></div>
+      </div>
+      <div class="userbox">
+        <span id="userLabel"></span>
+        <button onclick="logout()">Sair</button>
+      </div>
+    </header>
+
+    <nav>
+      <button class="tab-btn active" data-tab="farol" onclick="mostrarAba('farol')">Farol</button>
+      <button class="tab-btn admin-only hidden" data-tab="tabela" onclick="mostrarAba('tabela')">Tabela</button>
+      <button class="tab-btn admin-only hidden"
+        onclick="window.open('atualizar_impactos_selecionadoras.html','_blank')">Atualizar dados</button>
+      <select id="filtroSel" onchange="renderizarTudo()">
+        <option value="">Todas as selecionadoras</option>
+      </select>
+    </nav>
+
+    <main>
+      <div id="tab-farol">
+        <div class="resumo">
+          <div class="card">
+            <div class="n" id="rAbertos">0</div>
+            <div class="l">Impactos em aberto</div>
+          </div>
+          <div class="card">
+            <div class="n" style="color:var(--nok)" id="rGrave">0</div>
+            <div class="l">Graves</div>
+          </div>
+          <div class="card">
+            <div class="n" style="color:var(--warn)" id="rModerado">0</div>
+            <div class="l">Moderados</div>
+          </div>
+          <div class="card">
+            <div class="n" style="color:var(--ok)" id="rLeve">0</div>
+            <div class="l">Leves</div>
+          </div>
+          <div class="card">
+            <div class="n" style="color:#6b7280" id="rTratado">0</div>
+            <div class="l">Já tratados</div>
+          </div>
+        </div>
+        <div class="cols">
+          <div class="col nok">
+            <div class="head"><span>🔴 Graves</span><span id="cNok">0</span></div>
+            <div class="body" id="colNok"></div>
+          </div>
+          <div class="col warn">
+            <div class="head"><span>🟡 Moderados</span><span id="cWarn">0</span></div>
+            <div class="body" id="colWarn"></div>
+          </div>
+          <div class="col ok">
+            <div class="head"><span>🟢 Leves</span><span id="cOk">0</span></div>
+            <div class="body" id="colOk"></div>
+          </div>
+          <div class="col pend">
+            <div class="head"><span>🟣 Sem severidade</span><span id="cPend">0</span></div>
+            <div class="body" id="colPend"></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="tab-tabela" class="hidden">
+        <table>
+          <thead>
+            <tr>
+              <th>Selecionadora</th>
+              <th>Data</th>
+              <th>Severidade</th>
+              <th>Descrição</th>
+              <th>Tratativa</th>
+              <th>Responsável</th>
+              <th>Situação</th>
+            </tr>
+          </thead>
+          <tbody id="tabelaBody"></tbody>
+        </table>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    // ═══════ CONFIGURAÇÃO — AJUSTE AQUI ═══════════════════════════════
+    const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwfe1toxVyoG8VN9bxvfKOBqU3pSMNpIFNpGxFrFv74gJt-eo9-elKny_4X2KzaGMiAgg/exec';
+    // Mesmas listas do Code.gs (comparação sem acento, "contém")
+    const SEV_GRAVE = ['GRAVE', 'CRITIC', 'ALTA', 'ALTO', 'MAJOR'];
+    const SEV_MODERADO = ['MODERAD', 'MEDIA', 'MEDIO', 'MEDIUM'];
+    const SEV_LEVE = ['LEVE', 'BAIXA', 'BAIXO', 'MINOR', 'LOW'];
+    const STATUS_TRATADO = ['TRATAD', 'RESOLV', 'FECHAD', 'ENCERR', 'CONCLU'];
+    const SESSAO_TIMEOUT_MIN = 30;
+
+    let dados = { impactos: [], users: [] };
+    let versaoAtual = null;
+    let sessao = null;
+
+    // ── Utilitários ──
+    function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+    function semAcento(s) { return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase(); }
+    function contemAlgum(str, lista) { const up = semAcento(str); return lista.some(t => up.indexOf(t) !== -1); }
+    async function sha256(t) {
+      const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(t));
+      return Array.from(new Uint8Array(b)).map(x => x.toString(16).padStart(2, '0')).join('');
+    }
+    function parseData(str) {
+      if (!str) return null;
+      str = String(str).trim();
+      let m = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (m) return new Date(+m[1], +m[2] - 1, +m[3]);
+      m = str.match(/^(\d{1,2})[.\/](\d{1,2})[.\/](\d{4})/);
+      if (m) return new Date(+m[3], +m[2] - 1, +m[1]);
+      return null;
+    }
+    function fmtBR(str) { const d = parseData(str); return d ? d.toLocaleDateString('pt-BR') : (str || '—'); }
+    function diasDesde(str) {
+      const d = parseData(str); if (!d) return null;
+      const h = new Date(); h.setHours(0, 0, 0, 0);
+      return Math.round((h - d) / 86400000);
+    }
+    function severidade(i) {
+      if (contemAlgum(i.severidade, SEV_GRAVE)) return 'nok';
+      if (contemAlgum(i.severidade, SEV_MODERADO)) return 'warn';
+      if (contemAlgum(i.severidade, SEV_LEVE)) return 'ok';
+      return 'pend';
+    }
+    const tratado = i => contemAlgum(i.statusTratativa, STATUS_TRATADO);
+
+    // ── API ──
+    async function apiGet() { return (await fetch(APPS_SCRIPT_URL)).json(); }
+    async function apiPost(b) { return (await fetch(APPS_SCRIPT_URL, { method: 'POST', body: JSON.stringify(b) })).json(); }
+
+    // ── Login (mesmo padrão dos outros Faróis: SHA-256, sessão 30 min) ──
+    async function fazerLogin() {
+      const user = document.getElementById('loginUser').value.trim();
+      const pass = document.getElementById('loginPass').value;
+      const err = document.getElementById('loginError'); err.textContent = '';
+      if (!user || !pass) { err.textContent = 'Preencha usuário e senha.'; return; }
+      try {
+        dados = await apiGet();
+        const hash = await sha256(pass);
+        const found = (dados.users || []).find(u => u.username === user && u.password === hash);
+        if (!found) { err.textContent = 'Usuário ou senha inválidos.'; return; }
+        sessao = { username: found.username, role: found.role, loginAt: Date.now() };
+        localStorage.setItem('farolImpactosSessao', JSON.stringify(sessao));
+        apiPost({ action: 'logAcesso', username: found.username, tipo: 'login' }).catch(() => { });
+        entrarNoApp();
+      } catch (e) { err.textContent = 'Erro ao conectar: ' + e.message; }
+    }
+    function logout() { localStorage.removeItem('farolImpactosSessao'); location.reload(); }
+    function sessaoValida() {
+      try {
+        const s = JSON.parse(localStorage.getItem('farolImpactosSessao') || 'null');
+        if (!s || Date.now() - s.loginAt > SESSAO_TIMEOUT_MIN * 60 * 1000) return null;
+        return s;
+      } catch (e) { return null; }
+    }
+    function entrarNoApp() {
+      document.getElementById('loginScreen').classList.add('hidden');
+      document.getElementById('app').classList.remove('hidden');
+      document.getElementById('userLabel').textContent = sessao.username + ' (' + sessao.role + ')';
+      if (sessao.role === 'admin') document.querySelectorAll('.admin-only').forEach(el => el.classList.remove('hidden'));
+      renderizarTudo();
+      iniciarSync();
+    }
+    function mostrarAba(nome) {
+      document.querySelectorAll('[id^="tab-"]').forEach(el => el.classList.add('hidden'));
+      document.getElementById('tab-' + nome).classList.remove('hidden');
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelector('.tab-btn[data-tab="' + nome + '"]').classList.add('active');
+    }
+
+    // ── Renderização ──
+    function itemHtml(i) {
+      const d = diasDesde(i.data);
+      const diasTxt = d === null ? '—' : (d <= 0 ? 'ocorreu hoje' : 'há ' + d + ' dia(s)');
+      return '<div class="item">' +
+        '<div class="sel">' + esc(i.selecionadora) + '</div>' +
+        '<div class="desc">' + esc(i.descricao) + '</div>' +
+        '<div class="meta">' + fmtBR(i.data) + (i.responsavel ? ' · ' + esc(i.responsavel) : '') +
+        ' · ' + esc(i.statusTratativa || 'Sem tratativa') + '</div>' +
+        '<div class="dias">' + diasTxt + '</div></div>';
+    }
+
+    function atualizarFiltro() {
+      const sel = document.getElementById('filtroSel');
+      const atual = sel.value;
+      const nomes = Array.from(new Set((dados.impactos || []).map(i => i.selecionadora).filter(Boolean))).sort();
+      sel.innerHTML = '<option value="">Todas as selecionadoras</option>' +
+        nomes.map(n => '<option value="' + esc(n) + '"' + (n === atual ? ' selected' : '') + '>' + esc(n) + '</option>').join('');
+    }
+
+    function renderizarTudo() {
+      atualizarFiltro();
+      const filtro = document.getElementById('filtroSel').value;
+      const todos = (dados.impactos || []).filter(i => !filtro || i.selecionadora === filtro);
+      const abertos = todos.filter(i => !tratado(i));
+      const nTratados = todos.length - abertos.length;
+
+      const grupos = { nok: [], warn: [], ok: [], pend: [] };
+      abertos.forEach(i => grupos[severidade(i)].push(i));
+      Object.keys(grupos).forEach(k => grupos[k].sort((a, b) => (diasDesde(b.data) || 0) - (diasDesde(a.data) || 0)));
+
+      const msgs = { nok: 'Nenhum impacto grave em aberto 🎉', warn: 'Nenhum impacto moderado', ok: 'Nenhum impacto leve', pend: 'Nada sem severidade' };
+      const ids = { nok: ['colNok', 'cNok'], warn: ['colWarn', 'cWarn'], ok: ['colOk', 'cOk'], pend: ['colPend', 'cPend'] };
+      Object.keys(grupos).forEach(k => {
+        document.getElementById(ids[k][0]).innerHTML = grupos[k].length
+          ? grupos[k].map(itemHtml).join('') : '<div class="empty">' + msgs[k] + '</div>';
+        document.getElementById(ids[k][1]).textContent = grupos[k].length;
+      });
+
+      document.getElementById('rAbertos').textContent = abertos.length;
+      document.getElementById('rGrave').textContent = grupos.nok.length;
+      document.getElementById('rModerado').textContent = grupos.warn.length;
+      document.getElementById('rLeve').textContent = grupos.ok.length;
+      document.getElementById('rTratado').textContent = nTratados;
+
+      const cores = { nok: ['#fee2e2', '#dc2626', 'Grave'], warn: ['#fef3c7', '#d97706', 'Moderado'], ok: ['#dcfce7', '#16a34a', 'Leve'], pend: ['#ede9fe', '#7c3aed', 'Não informada'] };
+      document.getElementById('tabelaBody').innerHTML = todos.map(i => {
+        const c = cores[severidade(i)];
+        const sit = tratado(i) ? '<span class="badge" style="background:#e5e7eb;color:#4b5563">Tratado</span>'
+          : '<span class="badge" style="background:' + c[0] + ';color:' + c[1] + '">' + c[2] + '</span>';
+        return '<tr><td>' + esc(i.selecionadora) + '</td><td>' + fmtBR(i.data) + '</td><td>' + esc(i.severidade) +
+          '</td><td>' + esc(i.descricao) + '</td><td>' + esc(i.statusTratativa) + '</td><td>' + esc(i.responsavel) +
+          '</td><td>' + sit + '</td></tr>';
+      }).join('');
+
+      const maisRecente = (dados.impactos || []).reduce((a, i) => i.updatedAt > a ? i.updatedAt : a, '');
+      document.getElementById('ultimaAtualizacao').textContent = maisRecente || '—';
+    }
+
+    // ── Sync leve: verifica versão a cada 1s; só rebaixa dados se mudou ──
+    function iniciarSync() {
+      setInterval(async () => {
+        try {
+          const r = await apiPost({ action: 'version' });
+          if (r.version !== undefined && r.version !== versaoAtual) {
+            versaoAtual = r.version;
+            dados = await apiGet();
+            renderizarTudo();
+          }
+        } catch (e) { }
+        if (!sessaoValida()) logout();
+      }, 1000);
+    }
+
+    (async function boot() {
+      const s = sessaoValida();
+      if (s) { sessao = s; try { dados = await apiGet(); } catch (e) { } entrarNoApp(); }
+      document.getElementById('loginPass').addEventListener('keydown', e => { if (e.key === 'Enter') fazerLogin(); });
+    })();
+  </script>
+</body>
+
+</html>
