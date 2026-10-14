@@ -35,7 +35,7 @@
     }
 
     main {
-      max-width: 920px;
+      max-width: 980px;
       margin: 0 auto;
       padding: 24px;
     }
@@ -102,6 +102,7 @@
       padding: 10px 14px;
       border-radius: 6px;
       display: none;
+      line-height: 1.5;
     }
 
     .status.ok {
@@ -128,10 +129,16 @@
     .preview {
       margin-top: 14px;
       font-size: 12px;
-      max-height: 300px;
+      max-height: 320px;
       overflow: auto;
       border: 1px solid #e5e7eb;
       border-radius: 6px;
+    }
+
+    .resumoPrev {
+      margin-top: 14px;
+      font-size: 13px;
+      color: #374151;
     }
 
     table {
@@ -169,34 +176,39 @@
 <body>
   <header>
     <h1>🔄 Atualizar Farol de Impactos — Selecionadoras</h1>
-    <div class="sub">Cole aqui os impactos extraídos do portal para atualizar o Farol</div>
+    <div class="sub">Cole aqui o retorno do relatório diário do SOFTRACK (Gráfico de Impactos — Order Pickers)</div>
   </header>
   <main>
     <div class="card">
       <h2>Como atualizar</h2>
       <ol>
-        <li>Faça login manualmente no portal e abra a conversa com o Claude in Chrome.</li>
-        <li>Peça para extrair os impactos (colisões) das selecionadoras no formato abaixo.</li>
-        <li>Copie o resultado, cole na caixa abaixo e clique em <b>Processar e atualizar</b>.</li>
+        <li>Rode o prompt do relatório diário no Claude in Chrome (SOFTRACK já autenticado).</li>
+        <li>Copie o <b>bloco estruturado</b> que ele devolve (entre <code>===FAROL_INICIO===</code> e
+          <code>===FAROL_FIM===</code>) — ou a resposta inteira, o bloco é localizado sozinho.</li>
+        <li>Cole abaixo e clique em <b>Processar e atualizar</b>.</li>
       </ol>
-      <p>Formato aceito (separador <b>;</b> ou tab). Pode agrupar por selecionadora:</p>
-      <pre>SELECIONADORA: Selecionadora 01
-RESPONSAVEL: JUNGHEINRICH LIFT TRUCK COMERCIO DE EMPILHADEIRAS LTDA
-Data;Severidade;Descrição;Status
-12/10/2026;Grave;Colisão no desviador lado B;Em tratativa
-13/10/2026;Leve;Batida em guia lateral;Tratado</pre>
-      <p>…ou uma linha completa por impacto:</p>
-      <pre>Selecionadora;Data;Severidade;Descrição;Status;Responsável
-Selecionadora 02;14/10/2026;Moderado;Impacto no sorter;Aberto;JUNGHEINRICH ...</pre>
-      <div class="aviso">A atualização <b>substitui</b> todos os impactos da planilha pelos colados aqui — cole sempre a
-        lista completa (incluindo os já tratados, se quiser mantê-los contados).</div>
+      <p>Formato esperado (separador <b>;</b>):</p>
+      <pre>===FAROL_INICIO===
+DATA_RELATORIO: 13/10/2026
+TOTAL: 2
+Data;Horário;Operador;ID do Operador;Nível;Máquina;ID do Evento
+13/10/2026;08:15:32;João da Silva;1234;Impacto Forte;Order Picker 05;98765
+13/10/2026;14:02:10;Não identificado no SOFTRACK;;Impacto Leve;Order Picker 11;
+===FAROL_FIM===</pre>
+      <div class="aviso">
+        A carga <b>soma ao histórico</b>: eventos já existentes são reconhecidos e <b>não duplicam</b> (pode recarregar
+        o mesmo dia sem medo)
+        e a tratativa já registrada é preservada. Para um dia <b>sem impactos</b>, envie <code>TOTAL: 0</code> com a
+        <code>DATA_RELATORIO</code>.
+      </div>
     </div>
 
     <div class="card">
-      <h2>Colar dados do portal</h2>
+      <h2>Colar retorno do SOFTRACK</h2>
       <textarea id="colar" placeholder="Cole aqui..."></textarea><br>
       <button id="btnProcessar" onclick="processar()">Processar e atualizar</button>
       <div id="statusMsg" class="status"></div>
+      <div id="resumoPrev" class="resumoPrev"></div>
       <div id="preview" class="preview"></div>
     </div>
   </main>
@@ -205,6 +217,8 @@ Selecionadora 02;14/10/2026;Moderado;Impacto no sorter;Aberto;JUNGHEINRICH ...</
     const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwfe1toxVyoG8VN9bxvfKOBqU3pSMNpIFNpGxFrFv74gJt-eo9-elKny_4X2KzaGMiAgg/exec';
 
     function limpar(v) { return (v || '').toString().trim(); }
+    function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+    function semAcento(s) { return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase(); }
 
     // Aceita dd/mm/yyyy, dd.mm.yyyy ou yyyy-mm-dd; devolve ISO (yyyy-mm-dd) ou null.
     function dataISO(str) {
@@ -215,78 +229,116 @@ Selecionadora 02;14/10/2026;Moderado;Impacto no sorter;Aberto;JUNGHEINRICH ...</
       if (m) return m[3] + '-' + m[2].padStart(2, '0') + '-' + m[1].padStart(2, '0');
       return null;
     }
-
-    function parseColado(texto) {
-      const linhas = texto.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-      const impactos = [];
-      let selAtual = '', respAtual = '';
-      linhas.forEach(linha => {
-        // Linhas de contexto: "SELECIONADORA: X" / "RESPONSAVEL: Y"
-        let m = linha.match(/^SELECIONADORA\s*:\s*(.+)$/i);
-        if (m) { selAtual = limpar(m[1]); return; }
-        m = linha.match(/^RESPONS[AÁ]VEL\s*:\s*(.+)$/i);
-        if (m) { respAtual = limpar(m[1]); return; }
-
-        let campos = linha.indexOf(';') !== -1 ? linha.split(';') : linha.split('\t');
-        campos = campos.map(limpar);
-
-        // Formato A: Data;Severidade;Descrição;Status
-        if (dataISO(campos[0]) && selAtual) {
-          impactos.push({
-            selecionadora: selAtual, data: dataISO(campos[0]), severidade: campos[1] || '',
-            descricao: campos[2] || '', statusTratativa: campos[3] || '', responsavel: respAtual,
-          });
-          return;
-        }
-        // Formato B: Selecionadora;Data;Severidade;Descrição;Status;Responsável
-        if (campos.length >= 3 && dataISO(campos[1])) {
-          impactos.push({
-            selecionadora: campos[0], data: dataISO(campos[1]), severidade: campos[2] || '',
-            descricao: campos[3] || '', statusTratativa: campos[4] || '',
-            responsavel: campos[5] || respAtual,
-          });
-        }
-        // Demais linhas (cabeçalhos, texto solto) são ignoradas.
-      });
-      return impactos;
+    function brData(iso) { const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? m[3] + '/' + m[2] + '/' + m[1] : iso; }
+    function ontemISO() {
+      const d = new Date(); d.setDate(d.getDate() - 1);
+      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
+    function usuarioAtual() {
+      try { return (JSON.parse(localStorage.getItem('farolImpactosSessao')) || {}).username || 'atualizacao_web'; }
+      catch (e) { return 'atualizacao_web'; }
+    }
+    function nivelCurto(s) {
+      const u = semAcento(s);
+      if (u.indexOf('FORTE') !== -1 || u.indexOf('GRAVE') !== -1) return 'Forte';
+      if (u.indexOf('MEDIO') !== -1 || u.indexOf('MEDIA') !== -1) return 'Médio';
+      if (u.indexOf('LEVE') !== -1) return 'Leve';
+      return 'Outro/N.I.';
     }
 
-    function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+    // Extrai o bloco estruturado (se houver marcadores) e interpreta as linhas.
+    function parseColado(texto) {
+      let corpo = texto;
+      const ini = texto.indexOf('===FAROL_INICIO===');
+      const fim = texto.indexOf('===FAROL_FIM===');
+      if (ini !== -1) corpo = texto.substring(ini + '===FAROL_INICIO==='.length, fim !== -1 && fim > ini ? fim : undefined);
 
-    function mostrarPreview(lista) {
-      const el = document.getElementById('preview');
-      if (!lista.length) { el.innerHTML = ''; return; }
-      const rows = lista.slice(0, 25).map(i =>
-        '<tr><td>' + esc(i.selecionadora) + '</td><td>' + esc(i.data) + '</td><td>' + esc(i.severidade) +
-        '</td><td>' + esc(i.descricao) + '</td><td>' + esc(i.statusTratativa) + '</td><td>' + esc(i.responsavel) + '</td></tr>').join('');
-      el.innerHTML = '<table><thead><tr><th>Selecionadora</th><th>Data</th><th>Severidade</th><th>Descrição</th><th>Status</th><th>Responsável</th></tr></thead><tbody>' +
+      const res = { dataRelatorio: null, total: null, eventos: [], erros: [], temMarcador: ini !== -1 };
+      corpo.split(/\r?\n/).map(l => l.trim()).filter(Boolean).forEach(linha => {
+        let m = linha.match(/^DATA[_ ]RELAT[OÓ]RIO\s*:\s*(.+)$/i);
+        if (m) { res.dataRelatorio = dataISO(m[1]); return; }
+        m = linha.match(/^TOTAL\s*:\s*(\d+)\s*$/i);
+        if (m) { res.total = parseInt(m[1], 10); return; }
+
+        const campos = (linha.indexOf(';') !== -1 ? linha.split(';') : linha.split('\t')).map(limpar);
+        if (dataISO(campos[0])) { // linha de evento: começa com a data
+          if (campos.length < 6) { res.erros.push(linha); return; }
+          // Data;Horário;Operador;ID do Operador;Nível;Máquina;ID do Evento
+          res.eventos.push({
+            data: dataISO(campos[0]), horario: campos[1] || '', operador: campos[2] || '',
+            idOperador: campos[3] || '', severidade: campos[4] || '', selecionadora: campos[5] || '',
+            idEvento: campos[6] || '',
+          });
+        }
+        // Demais linhas (cabeçalho, texto solto) são ignoradas.
+      });
+      return res;
+    }
+
+    function mostrarPreview(res) {
+      const el = document.getElementById('preview'), rs = document.getElementById('resumoPrev');
+      if (!res.eventos.length) { el.innerHTML = ''; rs.innerHTML = ''; return; }
+      const cont = {};
+      res.eventos.forEach(e => { const n = nivelCurto(e.severidade); cont[n] = (cont[n] || 0) + 1; });
+      rs.innerHTML = '<b>' + res.eventos.length + ' evento(s)</b> · ' +
+        Object.keys(cont).map(k => k + ': ' + cont[k]).join(' · ') +
+        (res.dataRelatorio ? ' · relatório de <b>' + brData(res.dataRelatorio) + '</b>' : '');
+      const rows = res.eventos.slice(0, 40).map(e =>
+        '<tr><td>' + brData(e.data) + '</td><td>' + esc(e.horario) + '</td><td>' + esc(e.operador) + '</td><td>' + esc(e.idOperador) +
+        '</td><td>' + esc(e.severidade) + '</td><td>' + esc(e.selecionadora) + '</td><td>' + esc(e.idEvento) + '</td></tr>').join('');
+      el.innerHTML = '<table><thead><tr><th>Data</th><th>Horário</th><th>Operador</th><th>ID Op.</th><th>Nível</th><th>Máquina</th><th>ID Evento</th></tr></thead><tbody>' +
         rows + '</tbody></table>' +
-        (lista.length > 25 ? '<div style="padding:6px 10px;color:#6b7280">+ ' + (lista.length - 25) + ' outros impactos...</div>' : '');
+        (res.eventos.length > 40 ? '<div style="padding:6px 10px;color:#6b7280">+ ' + (res.eventos.length - 40) + ' outros eventos...</div>' : '');
+    }
+
+    function erro(msg) {
+      const s = document.getElementById('statusMsg');
+      s.className = 'status err'; s.textContent = msg;
     }
 
     async function processar() {
       const statusEl = document.getElementById('statusMsg');
       const btn = document.getElementById('btnProcessar');
-      const lista = parseColado(document.getElementById('colar').value);
-      mostrarPreview(lista);
+      const res = parseColado(document.getElementById('colar').value);
+      mostrarPreview(res);
 
-      if (!lista.length) {
-        statusEl.className = 'status err';
-        statusEl.textContent = 'Não encontrei nenhum impacto válido. Confira o formato (data no começo da linha ou na 2ª coluna).';
-        return;
+      // Data do relatório: informada, ou deduzida se todos os eventos forem do mesmo dia.
+      let dataRel = res.dataRelatorio;
+      if (!dataRel && res.eventos.length) {
+        const dias = Array.from(new Set(res.eventos.map(e => e.data)));
+        if (dias.length === 1) dataRel = dias[0];
       }
+      if (!dataRel) return erro('Não encontrei a DATA_RELATORIO (e os eventos não são todos do mesmo dia). Inclua a linha "DATA_RELATORIO: dd/MM/yyyy".');
+      if (res.erros.length) return erro('Há ' + res.erros.length + ' linha(s) com menos de 6 campos (ex.: "' + res.erros[0] + '"). Corrija e tente de novo.');
+
+      // Conferências de segurança
+      if (res.total !== null && res.total !== res.eventos.length) {
+        if (!confirm('O retorno informa TOTAL: ' + res.total + ' mas encontrei ' + res.eventos.length + ' linha(s) de evento.\nEnviar mesmo assim?')) return;
+      }
+      const foraDoDia = res.eventos.filter(e => e.data !== dataRel).length;
+      if (foraDoDia && !confirm(foraDoDia + ' evento(s) têm data diferente da DATA_RELATORIO (' + brData(dataRel) + ').\nEnviar mesmo assim?')) return;
+      if (dataRel !== ontemISO() && !confirm('A data do relatório (' + brData(dataRel) + ') não é a de ontem (' + brData(ontemISO()) + ').\nEnviar mesmo assim?')) return;
+
       statusEl.className = 'status loading';
-      statusEl.textContent = 'Enviando ' + lista.length + ' impacto(s) para o Farol...';
       btn.disabled = true;
       try {
-        const r = await fetch(APPS_SCRIPT_URL, {
-          method: 'POST',
-          body: JSON.stringify({ action: 'atualizarImpactos', impactos: lista, usuario: 'atualizacao_web' }),
-        });
+        let body, msgOk;
+        if (!res.eventos.length) {
+          if (res.total !== 0) throw new Error('Nenhum evento encontrado e o TOTAL não é 0. Confira o texto colado.');
+          statusEl.textContent = 'Registrando relatório de ' + brData(dataRel) + ' sem impactos...';
+          body = { action: 'registrarRelatorioDia', dataRelatorio: dataRel, usuario: usuarioAtual() };
+          msgOk = () => '✅ Relatório de ' + brData(dataRel) + ' registrado: nenhum impacto no dia.';
+        } else {
+          statusEl.textContent = 'Enviando ' + res.eventos.length + ' evento(s) para o Farol...';
+          body = { action: 'atualizarImpactos', impactos: res.eventos, dataRelatorio: dataRel, usuario: usuarioAtual() };
+          msgOk = j => '✅ Relatório de ' + brData(dataRel) + ' processado: ' + j.recebidos + ' recebido(s), ' +
+            j.adicionados + ' novo(s), ' + j.atualizados + ' já existente(s). Histórico total: ' + j.totalBase + ' evento(s).';
+        }
+        const r = await fetch(APPS_SCRIPT_URL, { method: 'POST', body: JSON.stringify(body) });
         const j = await r.json();
         if (j.error) throw new Error(j.error);
         statusEl.className = 'status ok';
-        statusEl.textContent = '✅ Farol atualizado com ' + j.total + ' impacto(s).';
+        statusEl.textContent = msgOk(j);
       } catch (e) {
         statusEl.className = 'status err';
         statusEl.textContent = '❌ Erro ao atualizar: ' + e.message;
