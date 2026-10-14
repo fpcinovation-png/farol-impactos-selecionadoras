@@ -204,6 +204,15 @@ Data;Horário;Operador;ID do Operador;Nível;Máquina;ID do Evento
     </div>
 
     <div class="card">
+      <h2>Opção recomendada: subir o Excel do SOFTRACK</h2>
+      <p>No SOFTRACK: Indicadores → Impactos → FILTRO (período = ontem, 3 tipos, 16 máquinas) → <b>EXPORTAR EXCEL</b>.
+        Selecione o arquivo <code>grafico_impacto.xlsx</code> abaixo. Ele é convertido (Frota, Operador/crachá, Data, Hora,
+        Tipo de Impacto) e aparece na caixa de texto abaixo para você conferir antes de enviar.</p>
+      <input type="file" id="arquivoXlsx" accept=".xlsx,.xls">
+      <div id="xlsxMsg" style="font-size:12px;color:#6b7280;margin-top:8px"></div>
+    </div>
+
+    <div class="card">
       <h2>Colar retorno do SOFTRACK</h2>
       <textarea id="colar" placeholder="Cole aqui..."></textarea><br>
       <button id="btnProcessar" onclick="processar()">Processar e atualizar</button>
@@ -213,6 +222,7 @@ Data;Horário;Operador;ID do Operador;Nível;Máquina;ID do Evento
     </div>
   </main>
 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script>
     const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwfe1toxVyoG8VN9bxvfKOBqU3pSMNpIFNpGxFrFv74gJt-eo9-elKny_4X2KzaGMiAgg/exec';
 
@@ -290,6 +300,55 @@ Data;Horário;Operador;ID do Operador;Nível;Máquina;ID do Evento
         rows + '</tbody></table>' +
         (res.eventos.length > 40 ? '<div style="padding:6px 10px;color:#6b7280">+ ' + (res.eventos.length - 40) + ' outros eventos...</div>' : '');
     }
+
+    // ── Excel exportado do SOFTRACK (Gráfico de Impactos) → bloco FAROL ──
+    // Colunas: Frota, Marca, Modelo, Unidade, Operador ("455733 - CRACHA"), Data, Hora, Tipo de Impacto
+    function excelParaBloco(rows) {
+      const idx = {}; const eventos = []; let periodo = null;
+      rows.forEach(r => {
+        const cel = r.map(c => limpar(c));
+        const txt = cel.join(' ');
+        const mp = txt.match(/Per[ií]odo\s*:\s*(\d{1,2}\/\d{1,2}\/\d{4})/i);
+        if (mp && !periodo) periodo = dataISO(mp[1]);
+        if (cel.some(c => semAcento(c) === 'FROTA')) { // linha de cabeçalho (também em páginas seguintes)
+          Object.keys(idx).forEach(k => delete idx[k]);
+          cel.forEach((c, i) => { const k = semAcento(c); if (k) idx[k] = i; });
+          return;
+        }
+        if (idx['FROTA'] === undefined) return;
+        const data = dataISO(cel[idx['DATA']]), hora = cel[idx['HORA']];
+        if (!data || !/^\d{1,2}:\d{2}/.test(hora)) return; // ignora rodapé/linhas soltas
+        const op = cel[idx['OPERADOR']] || '';
+        const m = op.match(/^\s*(\d+)\s*-\s*(.*)$/);
+        let idOp = '', nomeOp = op;
+        if (m) { idOp = m[1]; nomeOp = m[2].trim(); }
+        if (semAcento(nomeOp) === 'CRACHA') nomeOp = 'Crachá';
+        eventos.push([brData(data), hora, nomeOp || 'Não identificado no SOFTRACK', idOp,
+          nivelCurto(cel[idx['TIPO DE IMPACTO']]), cel[idx['FROTA']], ''].join(';'));
+      });
+      if (!periodo && eventos.length) periodo = dataISO(eventos[0].split(';')[0]);
+      return { periodo, eventos, bloco:
+        '===FAROL_INICIO===\n' + (periodo ? 'DATA_RELATORIO: ' + brData(periodo) + '\n' : '') +
+        'TOTAL: ' + eventos.length + '\nData;Horário;Operador;ID do Operador;Nível;Máquina;ID do Evento\n' +
+        eventos.join('\n') + '\n===FAROL_FIM===' };
+    }
+
+    document.getElementById('arquivoXlsx').addEventListener('change', async ev => {
+      const f = ev.target.files[0]; const msg = document.getElementById('xlsxMsg');
+      if (!f) return;
+      try {
+        if (typeof XLSX === 'undefined') throw new Error('biblioteca de Excel não carregou (sem internet?). Use a opção de colar.');
+        const wb = XLSX.read(await f.arrayBuffer(), { type: 'array' });
+        const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false, defval: '' });
+        const r = excelParaBloco(rows);
+        document.getElementById('colar').value = r.bloco;
+        mostrarPreview(parseColado(r.bloco));
+        msg.textContent = r.eventos.length
+          ? '✔ ' + r.eventos.length + ' impacto(s) lido(s). Confira abaixo e clique em "Processar e atualizar".'
+          : 'Nenhum impacto no arquivo (TOTAL: 0). Se o período estiver correto, clique em "Processar e atualizar" para registrar o dia sem impactos.';
+        if (!r.periodo) msg.textContent += ' ⚠ Não achei o período no arquivo; informe DATA_RELATORIO na caixa.';
+      } catch (e) { msg.textContent = '❌ Não consegui ler o Excel: ' + e.message; }
+    });
 
     function erro(msg) {
       const s = document.getElementById('statusMsg');
