@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Atualizar Farol de Impactos — Selecionadoras</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: #f3f4f6;
+      color: #1f2937;
+    }
+
+    header {
+      background: #0f2942;
+      color: #fff;
+      padding: 16px 20px;
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 18px;
+    }
+
+    header .sub {
+      font-size: 12px;
+      color: #9ca3af;
+      margin-top: 4px;
+    }
+
+    main {
+      max-width: 920px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 10px;
+      padding: 20px;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, .06);
+      margin-bottom: 18px;
+    }
+
+    .card h2 {
+      margin: 0 0 10px;
+      font-size: 15px;
+      color: #0f2942;
+    }
+
+    .card p,
+    .card li {
+      font-size: 13px;
+      color: #4b5563;
+      line-height: 1.55;
+    }
+
+    pre {
+      background: #f8fafc;
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      padding: 10px;
+      font-size: 12px;
+      overflow: auto;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 260px;
+      font-family: monospace;
+      font-size: 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      padding: 10px;
+    }
+
+    button {
+      background: #0f2942;
+      color: #fff;
+      border: none;
+      padding: 12px 22px;
+      border-radius: 6px;
+      font-size: 14px;
+      cursor: pointer;
+      margin-top: 12px;
+    }
+
+    button:disabled {
+      background: #9ca3af;
+      cursor: not-allowed;
+    }
+
+    .status {
+      margin-top: 14px;
+      font-size: 13px;
+      padding: 10px 14px;
+      border-radius: 6px;
+      display: none;
+    }
+
+    .status.ok {
+      display: block;
+      background: #f0fdf4;
+      color: #16a34a;
+      border: 1px solid #bbf7d0;
+    }
+
+    .status.err {
+      display: block;
+      background: #fef2f2;
+      color: #dc2626;
+      border: 1px solid #fecaca;
+    }
+
+    .status.loading {
+      display: block;
+      background: #eff6ff;
+      color: #2563eb;
+      border: 1px solid #bfdbfe;
+    }
+
+    .preview {
+      margin-top: 14px;
+      font-size: 12px;
+      max-height: 300px;
+      overflow: auto;
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th,
+    td {
+      padding: 5px 8px;
+      border-bottom: 1px solid #f1f5f9;
+      text-align: left;
+      white-space: nowrap;
+    }
+
+    th {
+      background: #f8fafc;
+      color: #6b7280;
+      font-size: 10px;
+      text-transform: uppercase;
+    }
+
+    .aviso {
+      font-size: 12px;
+      color: #92400e;
+      background: #fffbeb;
+      border: 1px solid #fde68a;
+      border-radius: 6px;
+      padding: 8px 12px;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <h1>🔄 Atualizar Farol de Impactos — Selecionadoras</h1>
+    <div class="sub">Cole aqui os impactos extraídos do portal para atualizar o Farol</div>
+  </header>
+  <main>
+    <div class="card">
+      <h2>Como atualizar</h2>
+      <ol>
+        <li>Faça login manualmente no portal e abra a conversa com o Claude in Chrome.</li>
+        <li>Peça para extrair os impactos (colisões) das selecionadoras no formato abaixo.</li>
+        <li>Copie o resultado, cole na caixa abaixo e clique em <b>Processar e atualizar</b>.</li>
+      </ol>
+      <p>Formato aceito (separador <b>;</b> ou tab). Pode agrupar por selecionadora:</p>
+      <pre>SELECIONADORA: Selecionadora 01
+RESPONSAVEL: JUNGHEINRICH LIFT TRUCK COMERCIO DE EMPILHADEIRAS LTDA
+Data;Severidade;Descrição;Status
+12/10/2026;Grave;Colisão no desviador lado B;Em tratativa
+13/10/2026;Leve;Batida em guia lateral;Tratado</pre>
+      <p>…ou uma linha completa por impacto:</p>
+      <pre>Selecionadora;Data;Severidade;Descrição;Status;Responsável
+Selecionadora 02;14/10/2026;Moderado;Impacto no sorter;Aberto;JUNGHEINRICH ...</pre>
+      <div class="aviso">A atualização <b>substitui</b> todos os impactos da planilha pelos colados aqui — cole sempre a
+        lista completa (incluindo os já tratados, se quiser mantê-los contados).</div>
+    </div>
+
+    <div class="card">
+      <h2>Colar dados do portal</h2>
+      <textarea id="colar" placeholder="Cole aqui..."></textarea><br>
+      <button id="btnProcessar" onclick="processar()">Processar e atualizar</button>
+      <div id="statusMsg" class="status"></div>
+      <div id="preview" class="preview"></div>
+    </div>
+  </main>
+
+  <script>
+    const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwfe1toxVyoG8VN9bxvfKOBqU3pSMNpIFNpGxFrFv74gJt-eo9-elKny_4X2KzaGMiAgg/exec';
+
+    function limpar(v) { return (v || '').toString().trim(); }
+
+    // Aceita dd/mm/yyyy, dd.mm.yyyy ou yyyy-mm-dd; devolve ISO (yyyy-mm-dd) ou null.
+    function dataISO(str) {
+      str = limpar(str);
+      let m = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (m) return m[1] + '-' + m[2] + '-' + m[3];
+      m = str.match(/^(\d{1,2})[.\/](\d{1,2})[.\/](\d{4})/);
+      if (m) return m[3] + '-' + m[2].padStart(2, '0') + '-' + m[1].padStart(2, '0');
+      return null;
+    }
+
+    function parseColado(texto) {
+      const linhas = texto.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+      const impactos = [];
+      let selAtual = '', respAtual = '';
+      linhas.forEach(linha => {
+        // Linhas de contexto: "SELECIONADORA: X" / "RESPONSAVEL: Y"
+        let m = linha.match(/^SELECIONADORA\s*:\s*(.+)$/i);
+        if (m) { selAtual = limpar(m[1]); return; }
+        m = linha.match(/^RESPONS[AÁ]VEL\s*:\s*(.+)$/i);
+        if (m) { respAtual = limpar(m[1]); return; }
+
+        let campos = linha.indexOf(';') !== -1 ? linha.split(';') : linha.split('\t');
+        campos = campos.map(limpar);
+
+        // Formato A: Data;Severidade;Descrição;Status
+        if (dataISO(campos[0]) && selAtual) {
+          impactos.push({
+            selecionadora: selAtual, data: dataISO(campos[0]), severidade: campos[1] || '',
+            descricao: campos[2] || '', statusTratativa: campos[3] || '', responsavel: respAtual,
+          });
+          return;
+        }
+        // Formato B: Selecionadora;Data;Severidade;Descrição;Status;Responsável
+        if (campos.length >= 3 && dataISO(campos[1])) {
+          impactos.push({
+            selecionadora: campos[0], data: dataISO(campos[1]), severidade: campos[2] || '',
+            descricao: campos[3] || '', statusTratativa: campos[4] || '',
+            responsavel: campos[5] || respAtual,
+          });
+        }
+        // Demais linhas (cabeçalhos, texto solto) são ignoradas.
+      });
+      return impactos;
+    }
+
+    function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+    function mostrarPreview(lista) {
+      const el = document.getElementById('preview');
+      if (!lista.length) { el.innerHTML = ''; return; }
+      const rows = lista.slice(0, 25).map(i =>
+        '<tr><td>' + esc(i.selecionadora) + '</td><td>' + esc(i.data) + '</td><td>' + esc(i.severidade) +
+        '</td><td>' + esc(i.descricao) + '</td><td>' + esc(i.statusTratativa) + '</td><td>' + esc(i.responsavel) + '</td></tr>').join('');
+      el.innerHTML = '<table><thead><tr><th>Selecionadora</th><th>Data</th><th>Severidade</th><th>Descrição</th><th>Status</th><th>Responsável</th></tr></thead><tbody>' +
+        rows + '</tbody></table>' +
+        (lista.length > 25 ? '<div style="padding:6px 10px;color:#6b7280">+ ' + (lista.length - 25) + ' outros impactos...</div>' : '');
+    }
+
+    async function processar() {
+      const statusEl = document.getElementById('statusMsg');
+      const btn = document.getElementById('btnProcessar');
+      const lista = parseColado(document.getElementById('colar').value);
+      mostrarPreview(lista);
+
+      if (!lista.length) {
+        statusEl.className = 'status err';
+        statusEl.textContent = 'Não encontrei nenhum impacto válido. Confira o formato (data no começo da linha ou na 2ª coluna).';
+        return;
+      }
+      statusEl.className = 'status loading';
+      statusEl.textContent = 'Enviando ' + lista.length + ' impacto(s) para o Farol...';
+      btn.disabled = true;
+      try {
+        const r = await fetch(APPS_SCRIPT_URL, {
+          method: 'POST',
+          body: JSON.stringify({ action: 'atualizarImpactos', impactos: lista, usuario: 'atualizacao_web' }),
+        });
+        const j = await r.json();
+        if (j.error) throw new Error(j.error);
+        statusEl.className = 'status ok';
+        statusEl.textContent = '✅ Farol atualizado com ' + j.total + ' impacto(s).';
+      } catch (e) {
+        statusEl.className = 'status err';
+        statusEl.textContent = '❌ Erro ao atualizar: ' + e.message;
+      } finally { btn.disabled = false; }
+    }
+  </script>
+</body>
+
+</html>
