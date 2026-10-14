@@ -107,6 +107,22 @@
       margin: 0 auto;
     }
 
+    .banner {
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 13px;
+      margin-bottom: 14px;
+      background: #fffbeb;
+      border: 1px solid #fde68a;
+      color: #92400e;
+    }
+
+    .banner.info {
+      background: #eff6ff;
+      border-color: #bfdbfe;
+      color: #1d4ed8;
+    }
+
     .resumo {
       display: flex;
       gap: 14px;
@@ -247,6 +263,12 @@
       text-align: center;
     }
 
+    .nota {
+      font-size: 12px;
+      color: #6b7280;
+      margin: 0 0 10px;
+    }
+
     table {
       width: 100%;
       border-collapse: collapse;
@@ -259,6 +281,7 @@
       padding: 8px 10px;
       border-bottom: 1px solid #e5e7eb;
       text-align: left;
+      vertical-align: top;
     }
 
     th {
@@ -266,6 +289,21 @@
       color: #6b7280;
       font-size: 11px;
       text-transform: uppercase;
+    }
+
+    td button {
+      border: 1px solid #d1d5db;
+      background: #fff;
+      border-radius: 5px;
+      padding: 4px 10px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    td button.tratar {
+      background: var(--azul);
+      color: #fff;
+      border-color: var(--azul);
     }
 
     #loginScreen {
@@ -347,7 +385,8 @@
     <header>
       <div>
         <h1>🚨 Farol de Impactos das Selecionadoras</h1>
-        <div class="sub">Impactos físicos / colisões · atualizado em <span id="ultimaAtualizacao">—</span></div>
+        <div class="sub">Order Pickers Jungheinrich EKS 412S · Cabo de Santo Agostinho – PE · fonte: SOFTRACK · último
+          relatório: <span id="ultimoRelatorio">—</span></div>
       </div>
       <div class="userbox">
         <span id="userLabel"></span>
@@ -357,16 +396,18 @@
 
     <nav>
       <button class="tab-btn active" data-tab="farol" onclick="mostrarAba('farol')">Farol</button>
-      <button class="tab-btn admin-only hidden" data-tab="tabela" onclick="mostrarAba('tabela')">Tabela</button>
+      <button class="tab-btn admin-only hidden" data-tab="tabela" onclick="mostrarAba('tabela')">Tabela /
+        Tratativas</button>
       <button class="tab-btn admin-only hidden"
         onclick="window.open('atualizar_impactos_selecionadoras.html','_blank')">Atualizar dados</button>
       <select id="filtroSel" onchange="renderizarTudo()">
-        <option value="">Todas as selecionadoras</option>
+        <option value="">Todas as máquinas</option>
       </select>
     </nav>
 
     <main>
       <div id="tab-farol">
+        <div id="bannerRelatorio" class="banner hidden"></div>
         <div class="resumo">
           <div class="card">
             <div class="n" id="rAbertos">0</div>
@@ -374,11 +415,11 @@
           </div>
           <div class="card">
             <div class="n" style="color:var(--nok)" id="rGrave">0</div>
-            <div class="l">Graves</div>
+            <div class="l">Fortes</div>
           </div>
           <div class="card">
             <div class="n" style="color:var(--warn)" id="rModerado">0</div>
-            <div class="l">Moderados</div>
+            <div class="l">Médios</div>
           </div>
           <div class="card">
             <div class="n" style="color:var(--ok)" id="rLeve">0</div>
@@ -389,13 +430,15 @@
             <div class="l">Já tratados</div>
           </div>
         </div>
+        <p class="nota">Fortes aparecem até serem tratados · Médios e Leves aparecem nos últimos <span
+            id="janelaDias"></span> dias.</p>
         <div class="cols">
           <div class="col nok">
-            <div class="head"><span>🔴 Graves</span><span id="cNok">0</span></div>
+            <div class="head"><span>🔴 Fortes</span><span id="cNok">0</span></div>
             <div class="body" id="colNok"></div>
           </div>
           <div class="col warn">
-            <div class="head"><span>🟡 Moderados</span><span id="cWarn">0</span></div>
+            <div class="head"><span>🟡 Médios</span><span id="cWarn">0</span></div>
             <div class="body" id="colWarn"></div>
           </div>
           <div class="col ok">
@@ -403,23 +446,24 @@
             <div class="body" id="colOk"></div>
           </div>
           <div class="col pend">
-            <div class="head"><span>🟣 Sem severidade</span><span id="cPend">0</span></div>
+            <div class="head"><span>🟣 Nível não identificado</span><span id="cPend">0</span></div>
             <div class="body" id="colPend"></div>
           </div>
         </div>
       </div>
 
       <div id="tab-tabela" class="hidden">
+        <p class="nota" id="notaTabela"></p>
         <table>
           <thead>
             <tr>
-              <th>Selecionadora</th>
-              <th>Data</th>
-              <th>Severidade</th>
-              <th>Descrição</th>
+              <th>Data / Hora</th>
+              <th>Máquina</th>
+              <th>Operador</th>
+              <th>Nível</th>
+              <th>ID Evento</th>
               <th>Tratativa</th>
-              <th>Responsável</th>
-              <th>Situação</th>
+              <th>Ação</th>
             </tr>
           </thead>
           <tbody id="tabelaBody"></tbody>
@@ -431,21 +475,25 @@
   <script>
     // ═══════ CONFIGURAÇÃO — AJUSTE AQUI ═══════════════════════════════
     const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwfe1toxVyoG8VN9bxvfKOBqU3pSMNpIFNpGxFrFv74gJt-eo9-elKny_4X2KzaGMiAgg/exec';
-    // Mesmas listas do Code.gs (comparação sem acento, "contém")
-    const SEV_GRAVE = ['GRAVE', 'CRITIC', 'ALTA', 'ALTO', 'MAJOR'];
-    const SEV_MODERADO = ['MODERAD', 'MEDIA', 'MEDIO', 'MEDIUM'];
-    const SEV_LEVE = ['LEVE', 'BAIXA', 'BAIXO', 'MINOR', 'LOW'];
+    // Mesmas listas / janela do Code.gs (comparação sem acento, "contém")
+    const SEV_GRAVE = ['FORTE', 'GRAVE', 'CRITIC', 'ALTO', 'ALTA', 'MAJOR'];
+    const SEV_MODERADO = ['MEDIO', 'MEDIA', 'MODERAD', 'MEDIUM'];
+    const SEV_LEVE = ['LEVE', 'BAIXO', 'BAIXA', 'MINOR', 'LOW'];
     const STATUS_TRATADO = ['TRATAD', 'RESOLV', 'FECHAD', 'ENCERR', 'CONCLU'];
+    const FAROL_JANELA_DIAS = 7;
+    const LIMITE_TABELA = 500;
     const SESSAO_TIMEOUT_MIN = 30;
 
-    let dados = { impactos: [], users: [] };
+    let dados = { impactos: [], users: [], refreshLog: [] };
     let versaoAtual = null;
     let sessao = null;
 
     // ── Utilitários ──
     function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+    function escAttr(s) { return esc(s).replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
     function semAcento(s) { return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase(); }
     function contemAlgum(str, lista) { const up = semAcento(str); return lista.some(t => up.indexOf(t) !== -1); }
+    function ehND(s) { const u = semAcento(s).trim(); return !u || u.indexOf('NAO IDENTIFICADO') === 0 || u === 'ND' || u === '-'; }
     async function sha256(t) {
       const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(t));
       return Array.from(new Uint8Array(b)).map(x => x.toString(16).padStart(2, '0')).join('');
@@ -472,6 +520,15 @@
       return 'pend';
     }
     const tratado = i => contemAlgum(i.statusTratativa, STATUS_TRATADO);
+    function emAberto(i) {
+      if (tratado(i)) return false;
+      if (severidade(i) === 'nok') return true;
+      const d = diasDesde(i.data);
+      return d === null || d <= FAROL_JANELA_DIAS;
+    }
+    function operadorTxt(i) {
+      return (ehND(i.operador) ? 'Não identificado' : i.operador) + (i.idOperador && !ehND(i.idOperador) ? ' (' + i.idOperador + ')' : '');
+    }
 
     // ── API ──
     async function apiGet() { return (await fetch(APPS_SCRIPT_URL)).json(); }
@@ -506,6 +563,7 @@
       document.getElementById('loginScreen').classList.add('hidden');
       document.getElementById('app').classList.remove('hidden');
       document.getElementById('userLabel').textContent = sessao.username + ' (' + sessao.role + ')';
+      document.getElementById('janelaDias').textContent = FAROL_JANELA_DIAS;
       if (sessao.role === 'admin') document.querySelectorAll('.admin-only').forEach(el => el.classList.remove('hidden'));
       renderizarTudo();
       iniciarSync();
@@ -523,9 +581,9 @@
       const diasTxt = d === null ? '—' : (d <= 0 ? 'ocorreu hoje' : 'há ' + d + ' dia(s)');
       return '<div class="item">' +
         '<div class="sel">' + esc(i.selecionadora) + '</div>' +
-        '<div class="desc">' + esc(i.descricao) + '</div>' +
-        '<div class="meta">' + fmtBR(i.data) + (i.responsavel ? ' · ' + esc(i.responsavel) : '') +
-        ' · ' + esc(i.statusTratativa || 'Sem tratativa') + '</div>' +
+        '<div class="desc">Operador: ' + esc(operadorTxt(i)) + '</div>' +
+        '<div class="meta">' + fmtBR(i.data) + ' ' + esc(i.horario) + ' · ' + esc(i.severidade) +
+        (i.idEvento && !ehND(i.idEvento) ? ' · evento ' + esc(i.idEvento) : '') + '</div>' +
         '<div class="dias">' + diasTxt + '</div></div>';
     }
 
@@ -533,22 +591,41 @@
       const sel = document.getElementById('filtroSel');
       const atual = sel.value;
       const nomes = Array.from(new Set((dados.impactos || []).map(i => i.selecionadora).filter(Boolean))).sort();
-      sel.innerHTML = '<option value="">Todas as selecionadoras</option>' +
-        nomes.map(n => '<option value="' + esc(n) + '"' + (n === atual ? ' selected' : '') + '>' + esc(n) + '</option>').join('');
+      sel.innerHTML = '<option value="">Todas as máquinas</option>' +
+        nomes.map(n => '<option value="' + escAttr(n) + '"' + (n === atual ? ' selected' : '') + '>' + esc(n) + '</option>').join('');
+    }
+
+    function ultimoRelatorio() {
+      return (dados.refreshLog || []).reduce((a, l) => (l.dataRelatorio && l.dataRelatorio > a) ? l.dataRelatorio : a, '');
+    }
+
+    function atualizarBannerRelatorio() {
+      const ult = ultimoRelatorio();
+      const el = document.getElementById('bannerRelatorio');
+      document.getElementById('ultimoRelatorio').textContent = ult ? fmtBR(ult) : 'nenhum';
+      const d = ult ? diasDesde(ult) : null; // dias desde a data do último relatório
+      if (!ult) {
+        el.className = 'banner'; el.textContent = 'Nenhum relatório do SOFTRACK foi processado ainda.';
+      } else if (d !== null && d > 1) {
+        el.className = 'banner';
+        el.textContent = '⚠️ O relatório diário está atrasado: o último processado é de ' + fmtBR(ult) + ' (esperado: o de ontem).';
+      } else { el.className = 'banner hidden'; }
     }
 
     function renderizarTudo() {
       atualizarFiltro();
+      atualizarBannerRelatorio();
       const filtro = document.getElementById('filtroSel').value;
       const todos = (dados.impactos || []).filter(i => !filtro || i.selecionadora === filtro);
-      const abertos = todos.filter(i => !tratado(i));
-      const nTratados = todos.length - abertos.length;
+      const abertos = todos.filter(emAberto);
+      const nTratados = todos.filter(tratado).length;
 
       const grupos = { nok: [], warn: [], ok: [], pend: [] };
       abertos.forEach(i => grupos[severidade(i)].push(i));
-      Object.keys(grupos).forEach(k => grupos[k].sort((a, b) => (diasDesde(b.data) || 0) - (diasDesde(a.data) || 0)));
+      const maisRecente = (a, b) => ((b.data || '') + ' ' + (b.horario || '')).localeCompare((a.data || '') + ' ' + (a.horario || ''));
+      Object.keys(grupos).forEach(k => grupos[k].sort(maisRecente));
 
-      const msgs = { nok: 'Nenhum impacto grave em aberto 🎉', warn: 'Nenhum impacto moderado', ok: 'Nenhum impacto leve', pend: 'Nada sem severidade' };
+      const msgs = { nok: 'Nenhum impacto forte em aberto 🎉', warn: 'Nenhum impacto médio', ok: 'Nenhum impacto leve', pend: 'Nada sem nível' };
       const ids = { nok: ['colNok', 'cNok'], warn: ['colWarn', 'cWarn'], ok: ['colOk', 'cOk'], pend: ['colPend', 'cPend'] };
       Object.keys(grupos).forEach(k => {
         document.getElementById(ids[k][0]).innerHTML = grupos[k].length
@@ -562,19 +639,49 @@
       document.getElementById('rLeve').textContent = grupos.ok.length;
       document.getElementById('rTratado').textContent = nTratados;
 
-      const cores = { nok: ['#fee2e2', '#dc2626', 'Grave'], warn: ['#fef3c7', '#d97706', 'Moderado'], ok: ['#dcfce7', '#16a34a', 'Leve'], pend: ['#ede9fe', '#7c3aed', 'Não informada'] };
-      document.getElementById('tabelaBody').innerHTML = todos.map(i => {
+      // Tabela (admin) — mais recentes primeiro, limitada
+      const cores = { nok: ['#fee2e2', '#dc2626'], warn: ['#fef3c7', '#d97706'], ok: ['#dcfce7', '#16a34a'], pend: ['#ede9fe', '#7c3aed'] };
+      const ordenados = todos.slice().sort(maisRecente);
+      const mostrados = ordenados.slice(0, LIMITE_TABELA);
+      document.getElementById('notaTabela').textContent = 'Mostrando ' + mostrados.length + ' de ' + todos.length +
+        ' evento(s), do mais recente para o mais antigo. Use "Tratar" para registrar a tratativa (o impacto sai dos alertas).';
+      document.getElementById('tabelaBody').innerHTML = mostrados.map(i => {
         const c = cores[severidade(i)];
-        const sit = tratado(i) ? '<span class="badge" style="background:#e5e7eb;color:#4b5563">Tratado</span>'
-          : '<span class="badge" style="background:' + c[0] + ';color:' + c[1] + '">' + c[2] + '</span>';
-        return '<tr><td>' + esc(i.selecionadora) + '</td><td>' + fmtBR(i.data) + '</td><td>' + esc(i.severidade) +
-          '</td><td>' + esc(i.descricao) + '</td><td>' + esc(i.statusTratativa) + '</td><td>' + esc(i.responsavel) +
-          '</td><td>' + sit + '</td></tr>';
+        const trat = tratado(i)
+          ? '<span class="badge" style="background:#e5e7eb;color:#4b5563">' + esc(i.statusTratativa) + '</span><div style="font-size:11px;color:#6b7280;margin-top:3px">' +
+          esc(i.tratadoPor) + (i.tratadoEm ? ' · ' + esc(i.tratadoEm) : '') + (i.observacao ? '<br>' + esc(i.observacao) : '') + '</div>'
+          : '<span style="color:#9ca3af">—</span>';
+        const acao = tratado(i)
+          ? '<button data-acao="reabrir" data-id="' + escAttr(i.id) + '">Reabrir</button>'
+          : '<button class="tratar" data-acao="tratar" data-id="' + escAttr(i.id) + '">Tratar</button>';
+        return '<tr><td>' + fmtBR(i.data) + '<br><span style="color:#6b7280;font-size:12px">' + esc(i.horario) + '</span></td>' +
+          '<td>' + esc(i.selecionadora) + '</td><td>' + esc(operadorTxt(i)) + '</td>' +
+          '<td><span class="badge" style="background:' + c[0] + ';color:' + c[1] + '">' + esc(i.severidade || 'N.I.') + '</span></td>' +
+          '<td>' + esc(i.idEvento) + '</td><td>' + trat + '</td><td>' + acao + '</td></tr>';
       }).join('');
-
-      const maisRecente = (dados.impactos || []).reduce((a, i) => i.updatedAt > a ? i.updatedAt : a, '');
-      document.getElementById('ultimaAtualizacao').textContent = maisRecente || '—';
     }
+
+    // Tratativa (admin): Tratar / Reabrir
+    document.addEventListener('click', async ev => {
+      const b = ev.target.closest('button[data-acao]');
+      if (!b || !sessao || sessao.role !== 'admin') return;
+      const id = b.dataset.id, acao = b.dataset.acao;
+      let status = 'Tratado', obs = '';
+      if (acao === 'tratar') {
+        obs = prompt('Observação da tratativa (opcional):', '');
+        if (obs === null) return; // cancelou
+      } else {
+        if (!confirm('Reabrir este impacto (voltar para "em aberto")?')) return;
+        status = '';
+      }
+      b.disabled = true;
+      try {
+        const r = await apiPost({ action: 'tratarImpacto', id: id, status: status, observacao: obs, usuario: sessao.username });
+        if (r.error) throw new Error(r.error);
+        dados = await apiGet();
+        renderizarTudo();
+      } catch (e) { alert('Erro ao salvar a tratativa: ' + e.message); b.disabled = false; }
+    });
 
     // ── Sync leve: verifica versão a cada 1s; só rebaixa dados se mudou ──
     function iniciarSync() {
