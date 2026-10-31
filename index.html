@@ -380,6 +380,11 @@
     .modal .salvar{background:#1e3a5f;color:#fff;border:none}
     .modal .salvar:disabled{background:#9ca3af}
     #senhaMsg{font-size:13px;margin-top:12px;min-height:16px}
+    #loading{position:fixed;inset:0;background:rgba(15,23,42,.45);display:flex;align-items:center;justify-content:center;z-index:100}
+    #loading .card-load{background:#fff;border-radius:14px;padding:26px 36px;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.3)}
+    .spinner{width:44px;height:44px;border:5px solid #e5e7eb;border-top-color:var(--azul);border-radius:50%;margin:0 auto 14px;animation:giro .8s linear infinite}
+    @keyframes giro{to{transform:rotate(360deg)}}
+    #loadingTxt{font-size:14px;font-weight:700;color:var(--azul)}
     .adm-box{background:#fff;border-radius:10px;box-shadow:0 1px 2px rgba(0,0,0,.06);overflow:hidden}
     .adm-title{padding:16px 20px;font-weight:700;font-size:16px;color:var(--azul);border-bottom:1px solid #e5e7eb;background:#f8fafc}
     .adm-form{display:grid;grid-template-columns:2fr 2fr 1.4fr auto;gap:12px;align-items:end;padding:18px 20px;border-bottom:1px solid #e5e7eb}
@@ -523,6 +528,8 @@
     </main>
   </div>
 
+  <div id="loading" class="hidden"><div class="card-load"><div class="spinner"></div><div id="loadingTxt">Processando...</div></div></div>
+
   <div id="modalSenha" class="modal-bg hidden">
     <div class="modal">
       <h3>🔑 Alterar senha</h3>
@@ -540,7 +547,7 @@
 
   <script>
     // ═══════ CONFIGURAÇÃO — AJUSTE AQUI ═══════════════════════════════
-    const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbygvuWS4Np9Q26UXWsEjbgaNKedog3XDo_qiL5yX_XfIBqfNdc3Kus894z87gsX0KswxQ/exec';
+    const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwfe1toxVyoG8VN9bxvfKOBqU3pSMNpIFNpGxFrFv74gJt-eo9-elKny_4X2KzaGMiAgg/exec';
     // Mesmas listas / janela do Code.gs (comparação sem acento, "contém")
     const SEV_GRAVE = ['FORTE', 'GRAVE', 'CRITIC', 'ALTO', 'ALTA', 'MAJOR'];
     const SEV_MODERADO = ['MEDIO', 'MEDIA', 'MODERAD', 'MEDIUM'];
@@ -553,6 +560,10 @@
     let dados = { impactos: [], users: [], refreshLog: [] };
     let versaoAtual = null;
     let sessao = null;
+
+    // ── Indicador de carregamento (bloqueia a tela até terminar) ──
+    function carregando(txt) { document.getElementById('loadingTxt').textContent = txt || 'Processando...'; document.getElementById('loading').classList.remove('hidden'); }
+    function fimCarregando() { document.getElementById('loading').classList.add('hidden'); }
 
     // ── Utilitários ──
     function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
@@ -739,6 +750,7 @@
         if (sessao.role !== 'admin') return;
         if (!confirm('EXCLUIR este impacto da base?\n\nA exclusão é definitiva (só há o backup diário). Se você subir de novo o Excel do mesmo dia, o evento volta.')) return;
         b.disabled = true;
+        carregando('Excluindo impacto...');
         try {
           const r = await apiPost({ action: 'excluirImpacto', id: id, usuario: sessao.username });
           if (r.error) throw new Error(r.error);
@@ -746,6 +758,7 @@
           renderizarTudo();
           if ((dados.impactos || []).some(i => i.id === id)) alert('O impacto NÃO foi excluído. Provável causa: o Apps Script ainda está numa versão antiga. Em Implantar > Gerenciar implantações > Nova versão, atualize a implantação.');
         } catch (e) { alert('Erro ao excluir: ' + e.message); b.disabled = false; }
+        finally { fimCarregando(); }
         return;
       }
       let status = 'Tratado', obs = '';
@@ -757,12 +770,14 @@
         status = '';
       }
       b.disabled = true;
+      carregando(status ? 'Registrando tratativa...' : 'Reabrindo impacto...');
       try {
         const r = await apiPost({ action: 'tratarImpacto', id: id, status: status, observacao: obs, usuario: sessao.username });
         if (r.error) throw new Error(r.error);
         dados = await apiGet();
         renderizarTudo();
       } catch (e) { alert('Erro ao salvar a tratativa: ' + e.message); b.disabled = false; }
+      finally { fimCarregando(); }
     });
 
     // ── Sync leve: verifica versão a cada 1s; só rebaixa dados se mudou ──
