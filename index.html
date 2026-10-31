@@ -367,6 +367,19 @@
       font-weight: 700;
     }
 
+    td button.exc{border-color:#fecaca;color:#dc2626;font-weight:700;background:#fff}
+    .modal-bg{position:fixed;inset:0;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;z-index:50}
+    .modal{background:#fff;border-radius:16px;padding:28px 32px;width:440px;max-width:92vw;box-shadow:0 10px 40px rgba(0,0,0,.3)}
+    .modal h3{margin:0 0 4px;font-size:20px;color:#0f172a}
+    .modal .sub{color:#6b7280;font-size:14px;margin-bottom:20px}
+    .modal label{display:block;font-size:12px;font-weight:700;color:#6b7280;text-transform:uppercase;margin:14px 0 6px}
+    .modal input{width:100%;padding:12px 14px;border:1px solid #e5e7eb;border-radius:10px;font-size:15px;background:#f3f4f6}
+    .modal .acoes{display:flex;justify-content:flex-end;gap:10px;margin-top:24px}
+    .modal .acoes button{padding:11px 22px;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer}
+    .modal .cancelar{background:#fff;border:1px solid #e5e7eb;color:#6b7280}
+    .modal .salvar{background:#1e3a5f;color:#fff;border:none}
+    .modal .salvar:disabled{background:#9ca3af}
+    #senhaMsg{font-size:13px;margin-top:12px;min-height:16px}
     .adm-box{background:#fff;border-radius:10px;box-shadow:0 1px 2px rgba(0,0,0,.06);overflow:hidden}
     .adm-title{padding:16px 20px;font-weight:700;font-size:16px;color:var(--azul);border-bottom:1px solid #e5e7eb;background:#f8fafc}
     .adm-form{display:grid;grid-template-columns:2fr 2fr 1.4fr auto;gap:12px;align-items:end;padding:18px 20px;border-bottom:1px solid #e5e7eb}
@@ -406,6 +419,7 @@
       </div>
       <div class="userbox">
         <span id="userLabel"></span>
+        <button onclick="abrirSenha()" title="Alterar minha senha" style="font-size:14px">🔑</button>
         <button onclick="logout()">Sair</button>
       </div>
     </header>
@@ -481,6 +495,7 @@
               <th>ID Evento</th>
               <th>Tratativa</th>
               <th>Ação</th>
+              <th class="admin-only hidden">Excluir</th>
             </tr>
           </thead>
           <tbody id="tabelaBody"></tbody>
@@ -506,6 +521,21 @@
         </div>
       </div>
     </main>
+  </div>
+
+  <div id="modalSenha" class="modal-bg hidden">
+    <div class="modal">
+      <h3>🔑 Alterar senha</h3>
+      <div class="sub">Altere a senha da sua conta</div>
+      <label>Senha atual</label><input id="senhaAtual" type="password" placeholder="Senha atual" autocomplete="current-password">
+      <label>Nova senha</label><input id="senhaNova" type="password" placeholder="Mínimo 6 caracteres" autocomplete="new-password">
+      <label>Confirmar nova senha</label><input id="senhaConf" type="password" placeholder="Repita a nova senha" autocomplete="new-password">
+      <div id="senhaMsg"></div>
+      <div class="acoes">
+        <button class="cancelar" onclick="fecharSenha()">Cancelar</button>
+        <button class="salvar" id="btnSalvarSenha" onclick="salvarSenha()">Salvar senha</button>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -695,7 +725,8 @@
         return '<tr><td>' + fmtBR(i.data) + '<br><span style="color:#6b7280;font-size:12px">' + esc(i.horario) + '</span></td>' +
           '<td>' + esc(i.selecionadora) + '</td><td>' + esc(operadorTxt(i)) + '</td>' +
           '<td><span class="badge" style="background:' + c[0] + ';color:' + c[1] + '">' + esc(i.severidade || 'N.I.') + '</span></td>' +
-          '<td>' + esc(i.idEvento) + '</td><td>' + trat + '</td><td>' + acao + '</td></tr>';
+          '<td>' + esc(i.idEvento) + '</td><td>' + trat + '</td><td>' + acao + '</td>' +
+          ((sessao && sessao.role === 'admin') ? '<td><button class="exc" data-acao="excluir" data-id="' + escAttr(i.id) + '" title="Excluir impacto">🗑 Excluir</button></td>' : '') + '</tr>';
       }).join('');
     }
 
@@ -704,6 +735,18 @@
       const b = ev.target.closest('button[data-acao]');
       if (!b || !sessao || (sessao.role !== 'admin' && sessao.role !== 'gestor')) return;
       const id = b.dataset.id, acao = b.dataset.acao;
+      if (acao === 'excluir') {
+        if (sessao.role !== 'admin') return;
+        if (!confirm('EXCLUIR este impacto da base?\n\nA exclusão é definitiva (só há o backup diário). Se você subir de novo o Excel do mesmo dia, o evento volta.')) return;
+        b.disabled = true;
+        try {
+          const r = await apiPost({ action: 'excluirImpacto', id: id, usuario: sessao.username });
+          if (r.error) throw new Error(r.error);
+          dados = await apiGet();
+          renderizarTudo();
+        } catch (e) { alert('Erro ao excluir: ' + e.message); b.disabled = false; }
+        return;
+      }
       let status = 'Tratado', obs = '';
       if (acao === 'tratar') {
         obs = prompt('Observação da tratativa (opcional):', '');
@@ -820,6 +863,38 @@
         }
       } catch (e) { admMsg('❌ ' + e.message, 'err'); b.disabled = false; }
     });
+
+
+    // ── Alterar a própria senha (qualquer perfil) ──
+    function senhaMsg(t, ok) { const m = document.getElementById('senhaMsg'); m.textContent = t || ''; m.style.color = ok ? 'var(--ok)' : 'var(--nok)'; }
+    function abrirSenha() {
+      ['senhaAtual', 'senhaNova', 'senhaConf'].forEach(id => document.getElementById(id).value = '');
+      senhaMsg('');
+      document.getElementById('modalSenha').classList.remove('hidden');
+      document.getElementById('senhaAtual').focus();
+    }
+    function fecharSenha() { document.getElementById('modalSenha').classList.add('hidden'); }
+    async function salvarSenha() {
+      const atual = document.getElementById('senhaAtual').value;
+      const nova = document.getElementById('senhaNova').value;
+      const conf = document.getElementById('senhaConf').value;
+      if (!atual) return senhaMsg('Informe a senha atual.');
+      if (nova.length < 6) return senhaMsg('A nova senha precisa ter no mínimo 6 caracteres.');
+      if (nova !== conf) return senhaMsg('A confirmação não confere com a nova senha.');
+      if (nova === atual) return senhaMsg('A nova senha deve ser diferente da atual.');
+      const btn = document.getElementById('btnSalvarSenha'); btn.disabled = true; senhaMsg('Salvando...', true);
+      try {
+        const fresco = await apiGet();
+        const eu = (fresco.users || []).find(u => u.username === sessao.username);
+        if (!eu) throw new Error('Usuário não encontrado.');
+        if (eu.password !== await sha256(atual)) throw new Error('Senha atual incorreta.');
+        const hNova = await sha256(nova);
+        await admSalvar(lista => { lista.forEach(u => { if (u.username === sessao.username) u.password = hNova; }); return lista; });
+        senhaMsg('✅ Senha alterada com sucesso.', true);
+        setTimeout(fecharSenha, 1200);
+      } catch (e) { senhaMsg('❌ ' + e.message); }
+      finally { btn.disabled = false; }
+    }
 
     (async function boot() {
       const s = sessaoValida();
