@@ -608,7 +608,7 @@
     }
 
     // ── API ──
-    async function apiGet() { return (await fetch(APPS_SCRIPT_URL)).json(); }
+    async function apiGet() { return (await fetch(APPS_SCRIPT_URL + '?t=' + Date.now(), { cache: 'no-store' })).json(); }
     async function apiPost(b) { return (await fetch(APPS_SCRIPT_URL, { method: 'POST', body: JSON.stringify(b) })).json(); }
 
     // ── Login (mesmo padrão dos outros Faróis: SHA-256, sessão 30 min) ──
@@ -754,9 +754,9 @@
         try {
           const r = await apiPost({ action: 'excluirImpacto', id: id, usuario: sessao.username });
           if (r.error) throw new Error(r.error);
-          dados = await apiGet();
+          // O Apps Script confirmou (ok). Remove já da tela; o sync de 1s traz a lista oficial.
+          dados.impactos = (dados.impactos || []).filter(i => i.id !== id);
           renderizarTudo();
-          if ((dados.impactos || []).some(i => i.id === id)) alert('O impacto NÃO foi excluído. Provável causa: o Apps Script ainda está numa versão antiga. Em Implantar > Gerenciar implantações > Nova versão, atualize a implantação.');
         } catch (e) { alert('Erro ao excluir: ' + e.message); b.disabled = false; }
         finally { fimCarregando(); }
         return;
