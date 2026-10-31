@@ -379,7 +379,7 @@
     .adm-msg.err{color:var(--nok);padding:10px 20px}.adm-msg.ok{color:var(--ok);padding:10px 20px}
     .adm-tbl td,.adm-tbl th{padding:12px 20px}
     .adm-pill{display:inline-block;padding:3px 11px;border-radius:12px;font-size:12px;font-weight:700}
-    .adm-pill.admin{background:#ede9fe;color:#6d28d9}.adm-pill.operador{background:#dbeafe;color:#1d4ed8}
+    .adm-pill.gestor{background:#dcfce7;color:#15803d}.adm-pill.admin{background:#ede9fe;color:#6d28d9}.adm-pill.operador{background:#dbeafe;color:#1d4ed8}
     .adm-btn{border:1px solid #d1d5db;background:#fff;border-radius:6px;padding:5px 11px;font-size:12px;cursor:pointer;margin-left:6px}
     .adm-btn.rem{border-color:#fecaca;color:#dc2626;font-weight:700}
   </style>
@@ -412,7 +412,7 @@
 
     <nav>
       <button class="tab-btn active" data-tab="farol" onclick="mostrarAba('farol')">Farol</button>
-      <button class="tab-btn admin-only hidden" data-tab="tabela" onclick="mostrarAba('tabela')">Tabela /
+      <button class="tab-btn acesso-tabela hidden" data-tab="tabela" onclick="mostrarAba('tabela')">Tabela /
         Tratativas</button>
       <button class="tab-btn admin-only hidden" data-tab="admin" onclick="mostrarAba('admin')">👑 Admin</button>
       <button class="tab-btn admin-only hidden"
@@ -494,7 +494,7 @@
             <div><label>Usuário</label><input id="admUser" placeholder="Nome do usuário" autocomplete="off"></div>
             <div><label>Senha</label><input id="admPass" type="password" placeholder="mín. 6 caracteres" autocomplete="new-password"></div>
             <div><label>Perfil</label>
-              <select id="admRole"><option value="operador">Operador (só visualiza)</option><option value="admin">Admin</option></select>
+              <select id="admRole"><option value="operador">Operador (só visualiza)</option><option value="gestor">Gestor (Farol + Tabela / Tratativas)</option><option value="admin">Admin</option></select>
             </div>
             <button id="admAdd" onclick="admAdicionar()">+ Adicionar</button>
           </div>
@@ -598,9 +598,10 @@
     function entrarNoApp() {
       document.getElementById('loginScreen').classList.add('hidden');
       document.getElementById('app').classList.remove('hidden');
-      document.getElementById('userLabel').textContent = sessao.username + ' (' + sessao.role + ')';
+      document.getElementById('userLabel').textContent = sessao.username;
       document.getElementById('janelaDias').textContent = FAROL_JANELA_DIAS;
       if (sessao.role === 'admin') document.querySelectorAll('.admin-only').forEach(el => el.classList.remove('hidden'));
+      if (sessao.role === 'admin' || sessao.role === 'gestor') document.querySelectorAll('.acesso-tabela').forEach(el => el.classList.remove('hidden'));
       renderizarTudo();
       iniciarSync();
     }
@@ -701,7 +702,7 @@
     // Tratativa (admin): Tratar / Reabrir
     document.addEventListener('click', async ev => {
       const b = ev.target.closest('button[data-acao]');
-      if (!b || !sessao || sessao.role !== 'admin') return;
+      if (!b || !sessao || (sessao.role !== 'admin' && sessao.role !== 'gestor')) return;
       const id = b.dataset.id, acao = b.dataset.acao;
       let status = 'Tratado', obs = '';
       if (acao === 'tratar') {
@@ -752,7 +753,7 @@
             ? '<span style="color:#9ca3af;font-size:12px;margin-left:10px">protegido</span>'
             : '<button class="adm-btn rem" data-uacao="remover" data-user="' + escAttr(u.username) + '">Remover</button>');
         return '<tr><td><strong>' + esc(u.username) + '</strong></td>' +
-          '<td><span class="adm-pill ' + (u.role === 'admin' ? 'admin' : 'operador') + '">' + (u.role === 'admin' ? '👑 Admin' : '👤 Operador') + '</span></td>' +
+          '<td><span class="adm-pill ' + (u.role === 'admin' ? 'admin' : u.role === 'gestor' ? 'gestor' : 'operador') + '">' + (u.role === 'admin' ? '👑 Admin' : u.role === 'gestor' ? '🛠 Gestor' : '👤 Operador') + '</span></td>' +
           '<td style="color:#6b7280">' + esc(u.createdBy || 'Sistema') + '</td>' +
           '<td style="color:#6b7280">' + esc(u.createdAt || '') + '</td>' +
           '<td style="text-align:right">' + acoes + '</td></tr>';
