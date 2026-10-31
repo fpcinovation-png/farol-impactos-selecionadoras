@@ -546,8 +546,67 @@
   </div>
 
   <script>
+
+
+    // ── Caixas de diálogo próprias (substituem alert/confirm/prompt do navegador) ──
+    (function () {
+      const css = document.createElement('style');
+      css.textContent = `
+        .dlg-bg{position:fixed;inset:0;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;z-index:200;animation:dlgf .15s ease}
+        .dlg{background:#fff;border-radius:18px;padding:28px 30px 24px;width:430px;max-width:92vw;box-shadow:0 20px 50px rgba(0,0,0,.35);font-family:Arial,Helvetica,sans-serif;animation:dlgs .18s ease}
+        .dlg-ic{width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:24px;margin-bottom:14px}
+        .dlg-ic.info{background:#e0ecff}.dlg-ic.perigo{background:#fee2e2}.dlg-ic.erro{background:#fee2e2}.dlg-ic.ok{background:#dcfce7}
+        .dlg h3{margin:0 0 8px;font-size:20px;color:#0f172a}
+        .dlg p{margin:0;font-size:14.5px;line-height:1.55;color:#4b5563;white-space:pre-line}
+        .dlg input{width:100%;margin-top:16px;padding:12px 14px;border:1px solid #e5e7eb;border-radius:10px;font-size:15px;background:#f3f4f6;outline:none}
+        .dlg input:focus{border-color:#1e3a5f;background:#fff}
+        .dlg-ac{display:flex;justify-content:flex-end;gap:10px;margin-top:24px}
+        .dlg-ac button{padding:11px 22px;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;border:1px solid transparent}
+        .dlg-ac .dlg-c{background:#fff;border-color:#e5e7eb;color:#6b7280}
+        .dlg-ac .dlg-o{background:#1e3a5f;color:#fff}
+        .dlg-ac .dlg-o.perigo{background:#dc2626}
+        @keyframes dlgf{from{opacity:0}to{opacity:1}}@keyframes dlgs{from{transform:translateY(10px) scale(.97);opacity:0}to{transform:none;opacity:1}}`;
+      document.head.appendChild(css);
+
+      window.dlg = function (o) {
+        return new Promise(resolve => {
+          const ic = { info: 'ℹ️', perigo: '🗑️', erro: '⚠️', ok: '✅' }[o.tipo || 'info'];
+          const bg = document.createElement('div'); bg.className = 'dlg-bg';
+          const box = document.createElement('div'); box.className = 'dlg';
+          const t = document.createElement('h3'); t.textContent = o.titulo || '';
+          const p = document.createElement('p'); p.textContent = o.msg || '';
+          const i = document.createElement('div'); i.className = 'dlg-ic ' + (o.tipo || 'info'); i.textContent = ic;
+          box.appendChild(i); box.appendChild(t); if (o.msg) box.appendChild(p);
+          let inp = null;
+          if (o.input) {
+            inp = document.createElement('input'); inp.type = o.input.type || 'text';
+            inp.placeholder = o.input.placeholder || ''; inp.autocomplete = 'off';
+            box.appendChild(inp);
+          }
+          const ac = document.createElement('div'); ac.className = 'dlg-ac';
+          let bc = null;
+          if (o.cancelar !== false) { bc = document.createElement('button'); bc.className = 'dlg-c'; bc.textContent = o.cancelar || 'Cancelar'; ac.appendChild(bc); }
+          const bo = document.createElement('button'); bo.className = 'dlg-o' + (o.tipo === 'perigo' ? ' perigo' : ''); bo.textContent = o.ok || 'OK'; ac.appendChild(bo);
+          box.appendChild(ac); bg.appendChild(box); document.body.appendChild(bg);
+          const fim = v => { document.removeEventListener('keydown', tecla, true); bg.remove(); resolve(v); };
+          const aceitar = () => fim(inp ? inp.value : true);
+          const recusar = () => fim(inp ? null : false);
+          function tecla(e) {
+            if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); (bc ? recusar : aceitar)(); }
+            else if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); aceitar(); }
+          }
+          document.addEventListener('keydown', tecla, true);
+          bo.onclick = aceitar; if (bc) bc.onclick = recusar;
+          setTimeout(() => (inp || bo).focus(), 30);
+        });
+      };
+      // Atalhos
+      window.confirmar = (titulo, msg, op) => dlg(Object.assign({ titulo, msg }, op || {}));
+      window.avisar = (titulo, msg, tipo) => dlg({ titulo, msg, tipo: tipo || 'info', cancelar: false });
+      window.perguntar = (titulo, msg, op) => dlg({ titulo, msg, input: Object.assign({}, op || {}), ok: (op && op.ok) || 'Salvar' });
+    })();
     // ═══════ CONFIGURAÇÃO — AJUSTE AQUI ═══════════════════════════════
-    const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbygvuWS4Np9Q26UXWsEjbgaNKedog3XDo_qiL5yX_XfIBqfNdc3Kus894z87gsX0KswxQ/exec';
+    const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwfe1toxVyoG8VN9bxvfKOBqU3pSMNpIFNpGxFrFv74gJt-eo9-elKny_4X2KzaGMiAgg/exec';
     // Mesmas listas / janela do Code.gs (comparação sem acento, "contém")
     const SEV_GRAVE = ['FORTE', 'GRAVE', 'CRITIC', 'ALTO', 'ALTA', 'MAJOR'];
     const SEV_MODERADO = ['MEDIO', 'MEDIA', 'MODERAD', 'MEDIUM'];
@@ -748,7 +807,7 @@
       const id = b.dataset.id, acao = b.dataset.acao;
       if (acao === 'excluir') {
         if (sessao.role !== 'admin') return;
-        if (!confirm('EXCLUIR este impacto da base?\n\nA exclusão é definitiva (só há o backup diário). Se você subir de novo o Excel do mesmo dia, o evento volta.')) return;
+        if (!(await confirmar('Excluir impacto', 'Este impacto será removido da base.\n\nA exclusão é definitiva (só existe o backup diário). Se o Excel do mesmo dia for enviado de novo, o evento volta.', { tipo: 'perigo', ok: 'Excluir' }))) return;
         b.disabled = true;
         carregando('Excluindo impacto...');
         try {
@@ -758,16 +817,16 @@
           // O Apps Script confirmou a exclusão. Remove já da tela; o sync de 1s traz a lista oficial.
           dados.impactos = (dados.impactos || []).filter(i => i.id !== id);
           renderizarTudo();
-        } catch (e) { alert('Erro ao excluir: ' + e.message); b.disabled = false; }
+        } catch (e) { await avisar('Não foi possível excluir', e.message, 'erro'); b.disabled = false; }
         finally { fimCarregando(); }
         return;
       }
       let status = 'Tratado', obs = '';
       if (acao === 'tratar') {
-        obs = prompt('Observação da tratativa (opcional):', '');
+        obs = await perguntar('Registrar tratativa', 'Descreva o que foi feito (opcional).', { placeholder: 'Observação da tratativa', ok: 'Salvar tratativa' });
         if (obs === null) return; // cancelou
       } else {
-        if (!confirm('Reabrir este impacto (voltar para "em aberto")?')) return;
+        if (!(await confirmar('Reabrir impacto', 'O impacto volta para "em aberto" e passa a aparecer novamente nos alertas.', { ok: 'Reabrir' }))) return;
         status = '';
       }
       b.disabled = true;
@@ -777,7 +836,7 @@
         if (r.error) throw new Error(r.error);
         dados = await apiGet();
         renderizarTudo();
-      } catch (e) { alert('Erro ao salvar a tratativa: ' + e.message); b.disabled = false; }
+      } catch (e) { await avisar('Não foi possível salvar a tratativa', e.message, 'erro'); b.disabled = false; }
       finally { fimCarregando(); }
     });
 
@@ -861,7 +920,7 @@
       try {
         if (acao === 'remover') {
           let aviso = 'Remover o usuário "' + alvo + '"?';
-          if (!confirm(aviso)) return;
+          if (!(await confirmar('Remover usuário', aviso, { tipo: 'perigo', ok: 'Remover' }))) return;
           b.disabled = true;
           await admSalvar(lista => {
             const u = lista.find(x => String(x.username).toLowerCase() === alvo.toLowerCase());
@@ -870,7 +929,7 @@
           });
           admMsg('✅ Usuário "' + alvo + '" removido.', 'ok');
         } else if (acao === 'senha') {
-          const nova = prompt('Nova senha para "' + alvo + '" (mín. 6 caracteres):', '');
+          const nova = await perguntar('Redefinir senha', 'Nova senha para "' + alvo + '" (mínimo 6 caracteres).', { type: 'password', placeholder: 'Nova senha', ok: 'Redefinir' });
           if (nova === null) return;
           if (nova.length < 6) return admMsg('A senha precisa ter no mínimo 6 caracteres.', 'err');
           b.disabled = true;
