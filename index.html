@@ -744,6 +744,7 @@
           if (r.error) throw new Error(r.error);
           dados = await apiGet();
           renderizarTudo();
+          if ((dados.impactos || []).some(i => i.id === id)) alert('O impacto NÃO foi excluído. Provável causa: o Apps Script ainda está numa versão antiga. Em Implantar > Gerenciar implantações > Nova versão, atualize a implantação.');
         } catch (e) { alert('Erro ao excluir: ' + e.message); b.disabled = false; }
         return;
       }
