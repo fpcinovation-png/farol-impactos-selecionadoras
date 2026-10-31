@@ -366,6 +366,22 @@
       font-size: 11px;
       font-weight: 700;
     }
+
+    .adm-box{background:#fff;border-radius:10px;box-shadow:0 1px 2px rgba(0,0,0,.06);overflow:hidden}
+    .adm-title{padding:16px 20px;font-weight:700;font-size:16px;color:var(--azul);border-bottom:1px solid #e5e7eb;background:#f8fafc}
+    .adm-form{display:grid;grid-template-columns:2fr 2fr 1.4fr auto;gap:12px;align-items:end;padding:18px 20px;border-bottom:1px solid #e5e7eb}
+    @media(max-width:800px){.adm-form{grid-template-columns:1fr}}
+    .adm-form label{display:block;font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;margin-bottom:5px}
+    .adm-form input,.adm-form select{width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;background:#f8fafc}
+    .adm-form button{background:var(--azul);color:#fff;border:none;padding:11px 18px;border-radius:6px;font-weight:700;cursor:pointer;font-size:14px}
+    .adm-form button:disabled{background:#9ca3af}
+    .adm-msg{padding:0 20px;font-size:13px;min-height:0}
+    .adm-msg.err{color:var(--nok);padding:10px 20px}.adm-msg.ok{color:var(--ok);padding:10px 20px}
+    .adm-tbl td,.adm-tbl th{padding:12px 20px}
+    .adm-pill{display:inline-block;padding:3px 11px;border-radius:12px;font-size:12px;font-weight:700}
+    .adm-pill.admin{background:#ede9fe;color:#6d28d9}.adm-pill.operador{background:#dbeafe;color:#1d4ed8}
+    .adm-btn{border:1px solid #d1d5db;background:#fff;border-radius:6px;padding:5px 11px;font-size:12px;cursor:pointer;margin-left:6px}
+    .adm-btn.rem{border-color:#fecaca;color:#dc2626;font-weight:700}
   </style>
 </head>
 
@@ -398,6 +414,7 @@
       <button class="tab-btn active" data-tab="farol" onclick="mostrarAba('farol')">Farol</button>
       <button class="tab-btn admin-only hidden" data-tab="tabela" onclick="mostrarAba('tabela')">Tabela /
         Tratativas</button>
+      <button class="tab-btn admin-only hidden" data-tab="admin" onclick="mostrarAba('admin')">👑 Admin</button>
       <button class="tab-btn admin-only hidden"
         onclick="window.open('atualizar_impactos_selecionadoras.html','_blank')">Atualizar dados</button>
       <select id="filtroSel" onchange="renderizarTudo()">
@@ -468,6 +485,25 @@
           </thead>
           <tbody id="tabelaBody"></tbody>
         </table>
+      </div>
+
+      <div id="tab-admin" class="hidden">
+        <div class="adm-box">
+          <div class="adm-title">👑 Gestão de Usuários</div>
+          <div class="adm-form">
+            <div><label>Usuário</label><input id="admUser" placeholder="Nome do usuário" autocomplete="off"></div>
+            <div><label>Senha</label><input id="admPass" type="password" placeholder="mín. 6 caracteres" autocomplete="new-password"></div>
+            <div><label>Perfil</label>
+              <select id="admRole"><option value="operador">Operador (só visualiza)</option><option value="admin">Admin</option></select>
+            </div>
+            <button id="admAdd" onclick="admAdicionar()">+ Adicionar</button>
+          </div>
+          <div id="admMsg" class="adm-msg"></div>
+          <table class="adm-tbl">
+            <thead><tr><th>Usuário</th><th>Perfil</th><th>Criado por</th><th>Criado em</th><th></th></tr></thead>
+            <tbody id="admBody"></tbody>
+          </table>
+        </div>
       </div>
     </main>
   </div>
@@ -613,6 +649,7 @@
     }
 
     function renderizarTudo() {
+      renderUsuarios();
       atualizarFiltro();
       atualizarBannerRelatorio();
       const filtro = document.getElementById('filtroSel').value;
@@ -697,6 +734,91 @@
         if (!sessaoValida()) logout();
       }, 1000);
     }
+
+
+    // ── Admin: gestão de usuários (só admin vê a aba) ──
+    function admMsg(txt, tipo) { const m = document.getElementById('admMsg'); m.className = 'adm-msg ' + (tipo || ''); m.textContent = txt || ''; }
+
+    function renderUsuarios() {
+      const tb = document.getElementById('admBody');
+      if (!tb || !sessao || sessao.role !== 'admin') return;
+      const lista = dados.users || [];
+      const nAdmins = lista.filter(u => u.role === 'admin').length;
+      tb.innerHTML = lista.map(u => {
+        const eu = String(u.username).toLowerCase() === String(sessao.username).toLowerCase();
+        const ultimoAdmin = u.role === 'admin' && nAdmins <= 1;
+        const acoes = '<button class="adm-btn" data-uacao="senha" data-user="' + escAttr(u.username) + '">Redefinir senha</button>' +
+          ((eu || ultimoAdmin)
+            ? '<span style="color:#9ca3af;font-size:12px;margin-left:10px">protegido</span>'
+            : '<button class="adm-btn rem" data-uacao="remover" data-user="' + escAttr(u.username) + '">Remover</button>');
+        return '<tr><td><strong>' + esc(u.username) + '</strong></td>' +
+          '<td><span class="adm-pill ' + (u.role === 'admin' ? 'admin' : 'operador') + '">' + (u.role === 'admin' ? '👑 Admin' : '👤 Operador') + '</span></td>' +
+          '<td style="color:#6b7280">' + esc(u.createdBy || 'Sistema') + '</td>' +
+          '<td style="color:#6b7280">' + esc(u.createdAt || '') + '</td>' +
+          '<td style="text-align:right">' + acoes + '</td></tr>';
+      }).join('');
+    }
+
+    // Lê a lista MAIS RECENTE da planilha, aplica a mudança e grava (nunca grava lista vazia).
+    async function admSalvar(mutar) {
+      const fresco = await apiGet();
+      const lista = (fresco.users || []).map(u => ({ username: u.username, password: u.password, role: u.role, createdAt: u.createdAt, createdBy: u.createdBy || '' }));
+      const nova = mutar(lista);
+      if (!nova || !nova.length) throw new Error('Operação recusada: a lista de usuários ficaria vazia.');
+      if (!nova.some(u => u.role === 'admin')) throw new Error('Operação recusada: precisa existir ao menos 1 admin.');
+      const r = await apiPost({ users: nova });
+      if (r.error) throw new Error(r.error);
+      dados = await apiGet();
+      renderUsuarios();
+    }
+
+    async function admAdicionar() {
+      const user = document.getElementById('admUser').value.trim();
+      const pass = document.getElementById('admPass').value;
+      const role = document.getElementById('admRole').value;
+      if (!user) return admMsg('Informe o nome do usuário.', 'err');
+      if (pass.length < 6) return admMsg('A senha precisa ter no mínimo 6 caracteres.', 'err');
+      const btn = document.getElementById('admAdd'); btn.disabled = true; admMsg('Salvando...', '');
+      try {
+        const hash = await sha256(pass);
+        const hoje = new Date().toISOString().slice(0, 10);
+        await admSalvar(lista => {
+          if (lista.some(u => String(u.username).toLowerCase() === user.toLowerCase())) throw new Error('Já existe um usuário "' + user + '".');
+          lista.push({ username: user, password: hash, role: role, createdAt: hoje, createdBy: sessao.username });
+          return lista;
+        });
+        document.getElementById('admUser').value = ''; document.getElementById('admPass').value = '';
+        admMsg('✅ Usuário "' + user + '" adicionado.', 'ok');
+      } catch (e) { admMsg('❌ ' + e.message, 'err'); }
+      finally { btn.disabled = false; }
+    }
+
+    document.addEventListener('click', async ev => {
+      const b = ev.target.closest('button[data-uacao]');
+      if (!b || !sessao || sessao.role !== 'admin') return;
+      const alvo = b.dataset.user, acao = b.dataset.uacao;
+      try {
+        if (acao === 'remover') {
+          let aviso = 'Remover o usuário "' + alvo + '"?';
+          if (!confirm(aviso)) return;
+          b.disabled = true;
+          await admSalvar(lista => {
+            const u = lista.find(x => String(x.username).toLowerCase() === alvo.toLowerCase());
+            if (u && String(u.username).toLowerCase() === String(sessao.username).toLowerCase()) throw new Error('Você não pode remover o próprio usuário.');
+            return lista.filter(x => String(x.username).toLowerCase() !== alvo.toLowerCase());
+          });
+          admMsg('✅ Usuário "' + alvo + '" removido.', 'ok');
+        } else if (acao === 'senha') {
+          const nova = prompt('Nova senha para "' + alvo + '" (mín. 6 caracteres):', '');
+          if (nova === null) return;
+          if (nova.length < 6) return admMsg('A senha precisa ter no mínimo 6 caracteres.', 'err');
+          b.disabled = true;
+          const hash = await sha256(nova);
+          await admSalvar(lista => { lista.forEach(u => { if (String(u.username).toLowerCase() === alvo.toLowerCase()) u.password = hash; }); return lista; });
+          admMsg('✅ Senha de "' + alvo + '" redefinida.', 'ok');
+        }
+      } catch (e) { admMsg('❌ ' + e.message, 'err'); b.disabled = false; }
+    });
 
     (async function boot() {
       const s = sessaoValida();
