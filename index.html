@@ -655,10 +655,6 @@
     function semAcento(s) { return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase(); }
     function contemAlgum(str, lista) { const up = semAcento(str); return lista.some(t => up.indexOf(t) !== -1); }
     function ehND(s) { const u = semAcento(s).trim(); return !u || u.indexOf('NAO IDENTIFICADO') === 0 || u === 'ND' || u === '-'; }
-    async function sha256(t) {
-      const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(t));
-      return Array.from(new Uint8Array(b)).map(x => x.toString(16).padStart(2, '0')).join('');
-    }
     function parseData(str) {
       if (!str) return null;
       str = String(str).trim();
@@ -706,8 +702,20 @@
         throw e;
       } finally { clearTimeout(t); }
     }
-    async function apiGet() { return fetchJSON(APPS_SCRIPT_URL + '?t=' + Date.now(), { cache: 'no-store' }); }
-    async function apiPost(b) { return fetchJSON(APPS_SCRIPT_URL, { method: 'POST', body: JSON.stringify(b) }); }
+    // Toda chamada leva o token da sessão (criado pelo servidor no login).
+    function erroServidor(r) { const e = new Error(r.error || 'Erro no servidor.'); e.code = r.code || ''; return e; }
+    async function apiGet() {
+      const tok = sessao ? sessao.token : '';
+      const r = await fetchJSON(APPS_SCRIPT_URL + '?token=' + encodeURIComponent(tok) + '&t=' + Date.now(), { cache: 'no-store' });
+      if (r.error) throw erroServidor(r);
+      return r;
+    }
+    async function apiPost(b) {
+      const corpo = Object.assign({ token: sessao ? sessao.token : '' }, b);
+      const r = await fetchJSON(APPS_SCRIPT_URL, { method: 'POST', body: JSON.stringify(corpo) });
+      if (r.error) throw erroServidor(r);
+      return r;
+    }
 
     // ── Login (mesmo padrão dos outros Faróis: SHA-256, sessão 30 min) ──
     function setLoginCarregando(on) {
@@ -731,31 +739,32 @@
       if (!user || !pass) { mostrarErroLogin('Preencha usuário e senha.'); return; }
       setLoginCarregando(true);
       try {
-        dados = await apiGet();
-        const hash = await sha256(pass);
-        const found = (dados.users || []).find(u => u.username === user && u.password === hash);
-        if (!found) {
-          mostrarErroLogin('Usuário ou senha inválidos.');
-          document.getElementById('loginPass').value = '';
-          document.getElementById('loginPass').focus();
-          return;
-        }
-        sessao = { username: found.username, role: found.role, loginAt: Date.now() };
+        // A senha é conferida no servidor; o navegador nunca recebe senhas nem hashes.
+        const r = await apiPost({ action: 'login', username: user, password: pass });
+        sessao = { username: r.username, role: r.role, token: r.token, loginAt: Date.now() };
+        try { dados = await apiGet(); } catch (e) { sessao = null; throw e; }
         sessionStorage.setItem('farolImpactosSessao', JSON.stringify(sessao));
-        apiPost({ action: 'logAcesso', username: found.username, tipo: 'login' }).catch(() => { });
         entrarNoApp();
       } catch (e) {
         mostrarErroLogin(e.message || 'Erro ao conectar. Tente de novo.');
+        if (e.code === 'LOGIN') { document.getElementById('loginPass').value = ''; document.getElementById('loginPass').focus(); }
       } finally {
         setLoginCarregando(false);
       }
     }
 
-    function logout() { sessionStorage.removeItem('farolImpactosSessao'); location.reload(); }
+    let saindo = false;
+    function logout() {
+      if (saindo) return;
+      saindo = true;
+      if (sessao && sessao.token) apiPost({ action: 'logout' }).catch(() => { });
+      sessionStorage.removeItem('farolImpactosSessao');
+      location.reload();
+    }
     function sessaoValida() {
       try {
         const s = JSON.parse(sessionStorage.getItem('farolImpactosSessao') || 'null');
-        if (!s || Date.now() - s.loginAt > SESSAO_TIMEOUT_MIN * 60 * 1000) return null;
+        if (!s || !s.token || Date.now() - s.loginAt > SESSAO_TIMEOUT_MIN * 60 * 1000) return null;
         return s;
       } catch (e) { return null; }
     }
@@ -913,7 +922,9 @@
             dados = await apiGet();
             renderizarTudo();
           }
-        } catch (e) { }
+        } catch (e) {
+          if (e.code === 'AUTH' || e.code === 'PERMISSAO') logout();
+        }
         if (!sessaoValida()) logout();
       }, 1000);
     }
@@ -941,15 +952,9 @@
       }).join('');
     }
 
-    // Lê a lista MAIS RECENTE da planilha, aplica a mudança e grava (nunca grava lista vazia).
-    async function admSalvar(mutar) {
-      const fresco = await apiGet();
-      const lista = (fresco.users || []).map(u => ({ username: u.username, password: u.password, role: u.role, createdAt: u.createdAt, createdBy: u.createdBy || '' }));
-      const nova = mutar(lista);
-      if (!nova || !nova.length) throw new Error('Operação recusada: a lista de usuários ficaria vazia.');
-      if (!nova.some(u => u.role === 'admin')) throw new Error('Operação recusada: precisa existir ao menos 1 admin.');
-      const r = await apiPost({ users: nova });
-      if (r.error) throw new Error(r.error);
+    // Cada alteração de usuário é uma ação no servidor (que confere o perfil admin).
+    async function admSalvar(body) {
+      await apiPost(body);
       dados = await apiGet();
       renderUsuarios();
     }
@@ -962,13 +967,7 @@
       if (pass.length < 6) return admMsg('A senha precisa ter no mínimo 6 caracteres.', 'err');
       const btn = document.getElementById('admAdd'); btn.disabled = true; admMsg('Salvando...', '');
       try {
-        const hash = await sha256(pass);
-        const hoje = new Date().toISOString().slice(0, 10);
-        await admSalvar(lista => {
-          if (lista.some(u => String(u.username).toLowerCase() === user.toLowerCase())) throw new Error('Já existe um usuário "' + user + '".');
-          lista.push({ username: user, password: hash, role: role, createdAt: hoje, createdBy: sessao.username });
-          return lista;
-        });
+        await admSalvar({ action: 'addUser', username: user, password: pass, role: role });
         document.getElementById('admUser').value = ''; document.getElementById('admPass').value = '';
         admMsg('✅ Usuário "' + user + '" adicionado.', 'ok');
       } catch (e) { admMsg('❌ ' + e.message, 'err'); }
@@ -983,19 +982,14 @@
         if (acao === 'remover') {
           if (!(await confirmar('Remover usuário', 'Remover o usuário "' + alvo + '"?', { tipo: 'perigo', ok: 'Remover' }))) return;
           b.disabled = true;
-          await admSalvar(lista => {
-            const u = lista.find(x => String(x.username).toLowerCase() === alvo.toLowerCase());
-            if (u && String(u.username).toLowerCase() === String(sessao.username).toLowerCase()) throw new Error('Você não pode remover o próprio usuário.');
-            return lista.filter(x => String(x.username).toLowerCase() !== alvo.toLowerCase());
-          });
+          await admSalvar({ action: 'removeUser', username: alvo });
           admMsg('✅ Usuário "' + alvo + '" removido.', 'ok');
         } else if (acao === 'senha') {
           const nova = await perguntar('Redefinir senha', 'Nova senha para "' + alvo + '" (mínimo 6 caracteres).', { type: 'password', placeholder: 'Nova senha', ok: 'Redefinir' });
           if (nova === null) return;
           if (nova.length < 6) return admMsg('A senha precisa ter no mínimo 6 caracteres.', 'err');
           b.disabled = true;
-          const hash = await sha256(nova);
-          await admSalvar(lista => { lista.forEach(u => { if (String(u.username).toLowerCase() === alvo.toLowerCase()) u.password = hash; }); return lista; });
+          await admSalvar({ action: 'resetUserPassword', username: alvo, password: nova });
           admMsg('✅ Senha de "' + alvo + '" redefinida.', 'ok');
         }
       } catch (e) { admMsg('❌ ' + e.message, 'err'); b.disabled = false; }
@@ -1020,12 +1014,7 @@
       if (nova === atual) return senhaMsg('A nova senha deve ser diferente da atual.');
       const btn = document.getElementById('btnSalvarSenha'); btn.disabled = true; senhaMsg('Salvando...', true);
       try {
-        const fresco = await apiGet();
-        const eu = (fresco.users || []).find(u => u.username === sessao.username);
-        if (!eu) throw new Error('Usuário não encontrado.');
-        if (eu.password !== await sha256(atual)) throw new Error('Senha atual incorreta.');
-        const hNova = await sha256(nova);
-        await admSalvar(lista => { lista.forEach(u => { if (u.username === sessao.username) u.password = hNova; }); return lista; });
+        await apiPost({ action: 'changeOwnPassword', senhaAtual: atual, senhaNova: nova });
         senhaMsg('✅ Senha alterada com sucesso.', true);
         setTimeout(fecharSenha, 1200);
       } catch (e) { senhaMsg('❌ ' + e.message); }
@@ -1044,11 +1033,15 @@
 
     (async function boot() {
       const s = sessaoValida();
-      if (s) {
-        sessao = s;
-        try { dados = await apiGet(); }
-        catch (e) { /* segue mesmo sem dados; o sync tenta de novo */ }
+      if (!s) return;
+      sessao = s;
+      try {
+        dados = await apiGet();
         entrarNoApp();
+      } catch (e) {
+        // Sessão expirada no servidor (ou sem conexão): volta para o login.
+        sessao = null;
+        sessionStorage.removeItem('farolImpactosSessao');
       }
     })();
   </script>
