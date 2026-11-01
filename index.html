@@ -717,7 +717,7 @@
       return r;
     }
 
-    // ── Login (mesmo padrão dos outros Faróis: SHA-256, sessão 30 min) ──
+    // ── Login (senha conferida no servidor; sessão de 30 min) ──
     function setLoginCarregando(on) {
       const btn = document.getElementById('btnEntrar');
       btn.disabled = on;
@@ -862,8 +862,11 @@
           ? '<span class="badge" style="background:#e5e7eb;color:#4b5563">' + esc(i.statusTratativa) + '</span><div style="font-size:11px;color:#6b7280;margin-top:3px">' +
           esc(i.tratadoPor) + (i.tratadoEm ? ' · ' + esc(i.tratadoEm) : '') + (i.observacao ? '<br>' + esc(i.observacao) : '') + '</div>'
           : '<span style="color:#9ca3af">—</span>';
+        const podeMexer = !tratado(i) || sessao.role === 'admin' || String(i.tratadoPor).toLowerCase() === String(sessao.username).toLowerCase();
         const acao = tratado(i)
-          ? '<button data-acao="reabrir" data-id="' + escAttr(i.id) + '">Reabrir</button>'
+          ? (podeMexer
+              ? '<button data-acao="reabrir" data-id="' + escAttr(i.id) + '">Reabrir</button>'
+              : '<span style="color:#9ca3af;font-size:12px">Só o autor</span>')
           : '<button class="tratar" data-acao="tratar" data-id="' + escAttr(i.id) + '">Tratar</button>';
         return '<tr><td>' + fmtBR(i.data) + '<br><span style="color:#6b7280;font-size:12px">' + esc(i.horario) + '</span></td>' +
           '<td>' + esc(i.selecionadora) + '</td><td>' + esc(operadorTxt(i)) + '</td>' +
