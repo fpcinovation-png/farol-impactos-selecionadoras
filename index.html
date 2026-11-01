@@ -703,12 +703,8 @@
     }
     // Toda chamada leva o token da sessão (criado pelo servidor no login).
     function erroServidor(r) { const e = new Error(r.error || 'Erro no servidor.'); e.code = r.code || ''; return e; }
-    async function apiGet() {
-      const tok = sessao ? sessao.token : '';
-      const r = await fetchJSON(APPS_SCRIPT_URL + '?token=' + encodeURIComponent(tok) + '&t=' + Date.now(), { cache: 'no-store' });
-      if (r.error) throw erroServidor(r);
-      return r;
-    }
+    // Leitura dos dados também por POST: o token vai no corpo, não na URL.
+    async function apiGet() { return apiPost({ action: 'dados' }); }
     async function apiPost(b) {
       const corpo = Object.assign({ token: sessao ? sessao.token : '' }, b);
       const r = await fetchJSON(APPS_SCRIPT_URL, { method: 'POST', body: JSON.stringify(corpo) });
