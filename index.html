@@ -741,7 +741,7 @@
           return;
         }
         sessao = { username: found.username, role: found.role, loginAt: Date.now() };
-        localStorage.setItem('farolImpactosSessao', JSON.stringify(sessao));
+        sessionStorage.setItem('farolImpactosSessao', JSON.stringify(sessao));
         apiPost({ action: 'logAcesso', username: found.username, tipo: 'login' }).catch(() => { });
         entrarNoApp();
       } catch (e) {
@@ -751,10 +751,10 @@
       }
     }
 
-    function logout() { localStorage.removeItem('farolImpactosSessao'); location.reload(); }
+    function logout() { sessionStorage.removeItem('farolImpactosSessao'); location.reload(); }
     function sessaoValida() {
       try {
-        const s = JSON.parse(localStorage.getItem('farolImpactosSessao') || 'null');
+        const s = JSON.parse(sessionStorage.getItem('farolImpactosSessao') || 'null');
         if (!s || Date.now() - s.loginAt > SESSAO_TIMEOUT_MIN * 60 * 1000) return null;
         return s;
       } catch (e) { return null; }
