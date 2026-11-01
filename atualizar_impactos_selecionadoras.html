@@ -282,14 +282,14 @@ Data;Horário;Operador;ID do Operador;Nível;Máquina;ID do Evento
       window.avisar = (titulo, msg, tipo) => dlg({ titulo, msg, tipo: tipo || 'info', cancelar: false });
       window.perguntar = (titulo, msg, op) => dlg({ titulo, msg, input: Object.assign({}, op || {}), ok: (op && op.ok) || 'Salvar' });
     })();
-    const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwfe1toxVyoG8VN9bxvfKOBqU3pSMNpIFNpGxFrFv74gJt-eo9-elKny_4X2KzaGMiAgg/exec';
+    const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbygvuWS4Np9Q26UXWsEjbgaNKedog3XDo_qiL5yX_XfIBqfNdc3Kus894z87gsX0KswxQ/exec';
 
     // Acesso restrito: só quem entrou no Farol como admin (sessão de 30 min) usa esta página.
     (function () {
       let ok = false;
       try {
-        const s = JSON.parse(localStorage.getItem('farolImpactosSessao') || 'null');
-        ok = !!s && s.role === 'admin' && (Date.now() - s.loginAt) < 30 * 60 * 1000;
+        const s = JSON.parse(sessionStorage.getItem('farolImpactosSessao') || 'null');
+        ok = !!s && !!s.token && s.role === 'admin' && (Date.now() - s.loginAt) < 30 * 60 * 1000;
       } catch (e) { }
       if (!ok) {
         document.querySelector('main').innerHTML =
@@ -315,8 +315,12 @@ Data;Horário;Operador;ID do Operador;Nível;Máquina;ID do Evento
       const d = new Date(); d.setDate(d.getDate() - 1);
       return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
     }
+    function tokenSessao() {
+      try { return (JSON.parse(sessionStorage.getItem('farolImpactosSessao')) || {}).token || ''; }
+      catch (e) { return ''; }
+    }
     function usuarioAtual() {
-      try { return (JSON.parse(localStorage.getItem('farolImpactosSessao')) || {}).username || 'atualizacao_web'; }
+      try { return (JSON.parse(sessionStorage.getItem('farolImpactosSessao')) || {}).username || 'atualizacao_web'; }
       catch (e) { return 'atualizacao_web'; }
     }
     function nivelCurto(s) {
@@ -464,6 +468,7 @@ Data;Horário;Operador;ID do Operador;Nível;Máquina;ID do Evento
           msgOk = j => '✅ Relatório de ' + brData(dataRel) + ' processado: ' + j.recebidos + ' recebido(s), ' +
             j.adicionados + ' novo(s), ' + j.atualizados + ' já existente(s). Histórico total: ' + j.totalBase + ' evento(s).';
         }
+        body.token = tokenSessao();
         const r = await fetch(APPS_SCRIPT_URL, { method: 'POST', body: JSON.stringify(body) });
         const j = await r.json();
         if (j.error) throw new Error(j.error);
